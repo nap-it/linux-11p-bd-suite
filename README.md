@@ -52,3 +52,7 @@ The following network adapters may exhibit limited functionality or may have not
 - [Rúben Castelhano](mailto:rubencastelhano@av.it.pt)
 - [Rodrigo Rosmaninho](https://github.com/RodrigoRosmaninho)
 - [Christian Gomes](https://www.linkedin.com/in/christian-anjos-gomes)
+
+## License
+
+linux-11p-bd-suite is licensed under LGPLv3, see [license file](LICENSE.md) for details.
