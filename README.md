@@ -1,6 +1,10 @@
 # IEEE 802.11p/bd Linux Driver Suite
 This repository provides instructions and build guides to enable IEEE 802.11p (and experimental IEEE 802.11bd) functionality on devices using ath9k- and ath10k- based devices. It covers a variety of platforms including Raspberry Pi, NVIDIA Jetson, and generic x86 systems, offering kernel patches, and example setups targetted toward vehicular networking and research applications.
 
+--
+Consider our version of Vanetza, **Vanetza-NAP**, which significantly facilitates the use of ITS-G5 https://github.com/nap-it/vanetza-nap
+--
+
 # Contributions Overview
 Below is an overview of the main contributions of this work:
 - `ath10k`: 
