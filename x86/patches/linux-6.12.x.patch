@@ -1483,7 +1483,7 @@ index f9b51d98d20b..64fa499e0c03 100644
  	ar->napi_dev = alloc_netdev_dummy(0);
  	if (!ar->napi_dev)
 diff --git a/drivers/net/wireless/ath/ath10k/core.h b/drivers/net/wireless/ath/ath10k/core.h
-index 4026cc433b85..33a249d1744b 100644
+index 4026cc433b85..a6e868710bc6 100644
 --- a/drivers/net/wireless/ath/ath10k/core.h
 +++ b/drivers/net/wireless/ath/ath10k/core.h
 @@ -3,7 +3,7 @@
@@ -1538,8 +1538,11 @@ index 4026cc433b85..33a249d1744b 100644
  
  struct ath10k;
  
-@@ -120,15 +129,21 @@ enum ath10k_skb_flags {
+@@ -118,17 +127,24 @@ enum ath10k_skb_flags {
+ 	ATH10K_SKB_F_QOS = BIT(4),
+ 	ATH10K_SKB_F_RAW_TX = BIT(5),
  	ATH10K_SKB_F_NOACK_TID = BIT(6),
++	ATH10K_SKB_F_HAS_TS = BIT(7),
  };
  
 +/* This uses same mem structure as the struct ieee80211_tx_info.  First 12
@@ -1560,12 +1563,12 @@ index 4026cc433b85..33a249d1744b 100644
 +	u16 airtime_est; /* = 16 bytes, set early */
 +	struct ieee80211_vif *vif; /* = 24 bytes, set early */
 +	struct ieee80211_txq *txq; /* = 32 bytes, set early */
-+	u32 control_flags; /* = 36 bytes, placeholder for where control.flags sits */
-+	/* room for 4 bytes, max total size == 40 */
++	u64 timestamp_ns; /* = 40 bytes */
++	/* no room, max total size == 40 */
  } __packed;
  
  struct ath10k_skb_rxcb {
-@@ -212,6 +227,10 @@ struct ath10k_wmi {
+@@ -212,6 +228,10 @@ struct ath10k_wmi {
  	u32 num_mem_chunks;
  	u32 rx_decap_mode;
  	struct ath10k_mem_chunk mem_chunks[WMI_MAX_MEM_REQS];
@@ -1576,7 +1579,7 @@ index 4026cc433b85..33a249d1744b 100644
  };
  
  struct ath10k_fw_stats_peer {
-@@ -222,6 +241,7 @@ struct ath10k_fw_stats_peer {
+@@ -222,6 +242,7 @@ struct ath10k_fw_stats_peer {
  	u32 peer_tx_rate;
  	u32 peer_rx_rate; /* 10x only */
  	u64 rx_duration;
@@ -1584,7 +1587,7 @@ index 4026cc433b85..33a249d1744b 100644
  };
  
  struct ath10k_fw_extd_stats_peer {
-@@ -248,6 +268,8 @@ struct ath10k_fw_stats_vdev {
+@@ -248,6 +269,8 @@ struct ath10k_fw_stats_vdev {
  	u32 num_tx_not_acked;
  	u32 tx_rate_history[10];
  	u32 beacon_rssi_history[10];
@@ -1593,7 +1596,7 @@ index 4026cc433b85..33a249d1744b 100644
  };
  
  struct ath10k_fw_stats_vdev_extd {
-@@ -340,6 +362,12 @@ struct ath10k_fw_stats_pdev {
+@@ -340,6 +363,12 @@ struct ath10k_fw_stats_pdev {
  	s32 phy_err_drop;
  	s32 mpdu_errs;
  	s32 rx_ovfl_errs;
@@ -1606,7 +1609,7 @@ index 4026cc433b85..33a249d1744b 100644
  };
  
  struct ath10k_fw_stats {
-@@ -348,6 +376,39 @@ struct ath10k_fw_stats {
+@@ -348,6 +377,39 @@ struct ath10k_fw_stats {
  	struct list_head vdevs;
  	struct list_head peers;
  	struct list_head peers_extd;
@@ -1646,7 +1649,7 @@ index 4026cc433b85..33a249d1744b 100644
  };
  
  #define ATH10K_TPC_TABLE_TYPE_FLAG	1
-@@ -429,6 +490,7 @@ struct ath10k_peer {
+@@ -429,6 +491,7 @@ struct ath10k_peer {
  	int vdev_id;
  	u8 addr[ETH_ALEN];
  	DECLARE_BITMAP(peer_ids, ATH10K_MAX_NUM_PEER_IDS);
@@ -1654,7 +1657,7 @@ index 4026cc433b85..33a249d1744b 100644
  
  	/* protected by ar->data_lock */
  	struct ieee80211_key_conf *keys[WMI_MAX_KEY_INDEX + 1];
-@@ -573,6 +635,7 @@ enum ath10k_beacon_state {
+@@ -573,6 +636,7 @@ enum ath10k_beacon_state {
  
  struct ath10k_vif {
  	struct list_head list;
@@ -1662,7 +1665,7 @@ index 4026cc433b85..33a249d1744b 100644
  
  	u32 vdev_id;
  	u16 peer_id;
-@@ -590,6 +653,7 @@ struct ath10k_vif {
+@@ -590,6 +654,7 @@ struct ath10k_vif {
  	struct ath10k *ar;
  	struct ieee80211_vif *vif;
  
@@ -1670,7 +1673,7 @@ index 4026cc433b85..33a249d1744b 100644
  	bool is_started;
  	bool is_up;
  	bool spectral_enabled;
-@@ -620,10 +684,38 @@ struct ath10k_vif {
+@@ -620,10 +685,38 @@ struct ath10k_vif {
  	} u;
  
  	bool use_cts_prot;
@@ -1710,7 +1713,7 @@ index 4026cc433b85..33a249d1744b 100644
  	struct wmi_wmm_params_all_arg wmm_params;
  	struct work_struct ap_csa_work;
  	struct delayed_work connection_loss_work;
-@@ -640,6 +732,13 @@ struct ath10k_vif {
+@@ -640,6 +733,13 @@ struct ath10k_vif {
  	u32 rate_code[ATH10K_TID_MAX];
  	int rtscts[ATH10K_TID_MAX];
  	u32 tids_rst;
@@ -1724,7 +1727,7 @@ index 4026cc433b85..33a249d1744b 100644
  };
  
  struct ath10k_vif_iter {
-@@ -664,6 +763,26 @@ struct ath10k_ce_crash_hdr {
+@@ -664,6 +764,26 @@ struct ath10k_ce_crash_hdr {
  
  #define MAX_MEM_DUMP_TYPE	5
  
@@ -1751,7 +1754,7 @@ index 4026cc433b85..33a249d1744b 100644
  /* used for crash-dump storage, protected by data-lock */
  struct ath10k_fw_crash_data {
  	guid_t guid;
-@@ -673,18 +792,38 @@ struct ath10k_fw_crash_data {
+@@ -673,18 +793,38 @@ struct ath10k_fw_crash_data {
  
  	u8 *ramdump_buf;
  	size_t ramdump_buf_len;
@@ -1790,7 +1793,7 @@ index 4026cc433b85..33a249d1744b 100644
  	struct ath10k_dfs_stats dfs_stats;
  	struct ath_dfs_pool_stats dfs_pool_stats;
  
-@@ -702,6 +841,33 @@ struct ath10k_debug {
+@@ -702,6 +842,33 @@ struct ath10k_debug {
  	void *cal_data;
  	u32 enable_extd_tx_stats;
  	u8 fw_dbglog_mode;
@@ -1824,7 +1827,7 @@ index 4026cc433b85..33a249d1744b 100644
  };
  
  enum ath10k_state {
-@@ -838,6 +1004,90 @@ enum ath10k_fw_features {
+@@ -838,6 +1005,90 @@ enum ath10k_fw_features {
  	/* Firmware support IRAM recovery */
  	ATH10K_FW_FEATURE_IRAM_RECOVERY = 22,
  
@@ -1915,7 +1918,7 @@ index 4026cc433b85..33a249d1744b 100644
  	/* keep last */
  	ATH10K_FW_FEATURE_COUNT,
  };
-@@ -867,6 +1117,9 @@ enum ath10k_dev_flags {
+@@ -867,6 +1118,9 @@ enum ath10k_dev_flags {
  	/* Per Station statistics service */
  	ATH10K_FLAG_PEER_STATS,
  
@@ -1925,7 +1928,7 @@ index 4026cc433b85..33a249d1744b 100644
  	/* protected by conf_mutex */
  	ATH10K_FLAG_NAPI_ENABLED,
  };
-@@ -943,6 +1196,8 @@ enum ath10k_tx_pause_reason {
+@@ -943,6 +1197,8 @@ enum ath10k_tx_pause_reason {
  
  struct ath10k_fw_file {
  	const struct firmware *firmware;
@@ -1934,7 +1937,7 @@ index 4026cc433b85..33a249d1744b 100644
  
  	char fw_version[ETHTOOL_FWVERS_LEN];
  
-@@ -960,6 +1215,14 @@ struct ath10k_fw_file {
+@@ -960,6 +1216,14 @@ struct ath10k_fw_file {
  	const void *codeswap_data;
  	size_t codeswap_len;
  
@@ -1949,7 +1952,7 @@ index 4026cc433b85..33a249d1744b 100644
  	/* The original idea of struct ath10k_fw_file was that it only
  	 * contains struct firmware and pointers to various parts (actual
  	 * firmware binary, otp, metadata etc) of the file. This seg_info
-@@ -1020,11 +1283,16 @@ struct ath10k {
+@@ -1020,11 +1284,16 @@ struct ath10k {
  	} msa;
  	u8 mac_addr[ETH_ALEN];
  
@@ -1966,7 +1969,7 @@ index 4026cc433b85..33a249d1744b 100644
  	u32 fw_version_minor;
  	u16 fw_version_release;
  	u16 fw_version_build;
-@@ -1054,7 +1322,9 @@ struct ath10k {
+@@ -1054,7 +1323,9 @@ struct ath10k {
  
  	bool nlo_enabled;
  	bool p2p;
@@ -1976,7 +1979,7 @@ index 4026cc433b85..33a249d1744b 100644
  	struct {
  		enum ath10k_bus bus;
  		const struct ath10k_hif_ops *ops;
-@@ -1086,6 +1356,58 @@ struct ath10k {
+@@ -1086,6 +1357,58 @@ struct ath10k {
  	const struct firmware *pre_cal_file;
  	const struct firmware *cal_file;
  
@@ -2035,7 +2038,7 @@ index 4026cc433b85..33a249d1744b 100644
  	struct {
  		u32 vendor;
  		u32 device;
-@@ -1144,10 +1466,12 @@ struct ath10k {
+@@ -1144,10 +1467,12 @@ struct ath10k {
  	unsigned int filter_flags;
  	unsigned long dev_flags;
  	bool dfs_block_radar_events;
@@ -2048,7 +2051,7 @@ index 4026cc433b85..33a249d1744b 100644
  
  	/* Protected by conf-mutex */
  	u8 cfg_tx_chainmask;
-@@ -1191,6 +1515,15 @@ struct ath10k {
+@@ -1191,6 +1516,15 @@ struct ath10k {
  	int max_num_tdls_vdevs;
  	int num_active_peers;
  	int num_tids;
@@ -2064,7 +2067,7 @@ index 4026cc433b85..33a249d1744b 100644
  
  	struct work_struct svc_rdy_work;
  	struct sk_buff *svc_rdy_skb;
-@@ -1204,18 +1537,13 @@ struct ath10k {
+@@ -1204,18 +1538,13 @@ struct ath10k {
  	struct sk_buff_head wmi_mgmt_tx_queue;
  
  	enum ath10k_state state;
@@ -2084,7 +2087,7 @@ index 4026cc433b85..33a249d1744b 100644
  	/* cycle count is reported twice for each visited channel during scan.
  	 * access protected by data_lock
  	 */
-@@ -1236,6 +1564,10 @@ struct ath10k {
+@@ -1236,6 +1565,10 @@ struct ath10k {
  
  	unsigned long tx_paused; /* see ATH10K_TX_PAUSE_ */
  
@@ -2095,7 +2098,7 @@ index 4026cc433b85..33a249d1744b 100644
  #ifdef CONFIG_ATH10K_DEBUGFS
  	struct ath10k_debug debug;
  	struct {
-@@ -1247,12 +1579,16 @@ struct ath10k {
+@@ -1247,12 +1580,16 @@ struct ath10k {
  		struct ath10k_spec_scan config;
  	} spectral;
  #endif
@@ -2113,7 +2116,7 @@ index 4026cc433b85..33a249d1744b 100644
  	} coredump;
  #endif
  
-@@ -1287,6 +1623,8 @@ struct ath10k {
+@@ -1287,6 +1624,8 @@ struct ath10k {
  	struct net_device *napi_dev;
  	struct napi_struct napi;
  
@@ -2122,7 +2125,7 @@ index 4026cc433b85..33a249d1744b 100644
  	struct work_struct set_coverage_class_work;
  	/* protected by conf_mutex */
  	struct {
-@@ -1320,6 +1658,66 @@ struct ath10k {
+@@ -1320,6 +1659,66 @@ struct ath10k {
  	s32 tx_power_2g_limit;
  	s32 tx_power_5g_limit;
  
@@ -2189,7 +2192,7 @@ index 4026cc433b85..33a249d1744b 100644
  	/* must be last */
  	u8 drv_priv[] __aligned(sizeof(void *));
  };
-@@ -1338,6 +1736,10 @@ extern unsigned long ath10k_coredump_mask;
+@@ -1338,6 +1737,10 @@ extern unsigned long ath10k_coredump_mask;
  
  void ath10k_core_napi_sync_disable(struct ath10k *ar);
  void ath10k_core_napi_enable(struct ath10k *ar);
@@ -2200,7 +2203,7 @@ index 4026cc433b85..33a249d1744b 100644
  struct ath10k *ath10k_core_create(size_t priv_size, struct device *dev,
  				  enum ath10k_bus bus,
  				  enum ath10k_hw_rev hw_rev,
-@@ -1360,5 +1762,9 @@ void ath10k_core_unregister(struct ath10k *ar);
+@@ -1360,5 +1763,9 @@ void ath10k_core_unregister(struct ath10k *ar);
  int ath10k_core_fetch_board_file(struct ath10k *ar, int bd_ie_type);
  int ath10k_core_check_dt(struct ath10k *ar);
  void ath10k_core_free_board_files(struct ath10k *ar);
@@ -6594,7 +6597,7 @@ index 42b75961cb96..994e35422f97 100644
  	struct sk_buff *skb;
  	unsigned long flags;
 diff --git a/drivers/net/wireless/ath/ath10k/htt_tx.c b/drivers/net/wireless/ath/ath10k/htt_tx.c
-index c1ddd761af3e..3b0d114796c3 100644
+index c1ddd761af3e..ca149e13d83a 100644
 --- a/drivers/net/wireless/ath/ath10k/htt_tx.c
 +++ b/drivers/net/wireless/ath/ath10k/htt_tx.c
 @@ -3,10 +3,8 @@
@@ -6907,7 +6910,7 @@ index c1ddd761af3e..3b0d114796c3 100644
 +		}
 +	}
 +
-+	if (msdu->skb_mstamp_ns != 0) {
++	if (skb_cb->flags & ATH10K_SKB_F_HAS_TS) {
 +		if (ar->dev_id == QCA988X_2_0_DEVICE_ID ||
 +			    ar->dev_id == QCA988X_2_0_DEVICE_ID_UBNT ||
 +			    ar->dev_id == QCA9887_1_0_DEVICE_ID) {
@@ -7215,7 +7218,7 @@ index 442091c6dfd2..3dc26931fa33 100644
 +
  #endif /* _HW_H_ */
 diff --git a/drivers/net/wireless/ath/ath10k/mac.c b/drivers/net/wireless/ath/ath10k/mac.c
-index 97e0a7523758..0e616a759952 100644
+index 97e0a7523758..7c6518b4b899 100644
 --- a/drivers/net/wireless/ath/ath10k/mac.c
 +++ b/drivers/net/wireless/ath/ath10k/mac.c
 @@ -3,19 +3,18 @@
@@ -7753,16 +7756,16 @@ index 97e0a7523758..0e616a759952 100644
 -	vdev_param = ar->wmi.vdev_param->enable_rtscts;
 -
 -	rts_cts |= SM(WMI_RTSCTS_ENABLED, WMI_RTSCTS_SET);
--
++	ath10k_dbg(ar, ATH10K_DBG_MAC, "mac vdev %d cts_protection %d val: %d\n",
++		   arvif->vdev_id, arvif->use_cts_prot, val);
+ 
 -	if (arvif->num_legacy_stations > 0)
 -		rts_cts |= SM(WMI_RTSCTS_ACROSS_SW_RETRIES,
 -			      WMI_RTSCTS_PROFILE);
 -	else
 -		rts_cts |= SM(WMI_RTSCTS_FOR_SECOND_RATESERIES,
 -			      WMI_RTSCTS_PROFILE);
-+	ath10k_dbg(ar, ATH10K_DBG_MAC, "mac vdev %d cts_protection %d val: %d\n",
-+		   arvif->vdev_id, arvif->use_cts_prot, val);
- 
+-
 -	ath10k_dbg(ar, ATH10K_DBG_MAC, "mac vdev %d recalc rts/cts prot %d\n",
 -		   arvif->vdev_id, rts_cts);
 -
@@ -8665,7 +8668,15 @@ index 97e0a7523758..0e616a759952 100644
  	if (ieee80211_is_data_present(fc) && sta && sta->tdls)
  		return ATH10K_HW_TXRX_ETHERNET;
  
-@@ -3976,7 +4802,8 @@ bool ath10k_mac_tx_frm_has_freq(struct ath10k *ar)
+@@ -3907,6 +4733,7 @@ static void ath10k_mac_tx_h_fill_cb(struct ath10k *ar,
+ 	bool noack = false;
+ 
+ 	cb->flags = 0;
++	cb->timestamp_ns = 0;
+ 
+ 	if (info->flags & IEEE80211_TX_CTL_HW_80211_ENCAP) {
+ 		cb->flags |= ATH10K_SKB_F_QOS;	/* Assume data frames are QoS */
+@@ -3976,7 +4803,8 @@ bool ath10k_mac_tx_frm_has_freq(struct ath10k *ar)
  		ar->running_fw->fw_file.htt_op_version == ATH10K_FW_HTT_OP_VERSION_TLV);
  }
  
@@ -8675,7 +8686,7 @@ index 97e0a7523758..0e616a759952 100644
  {
  	struct sk_buff_head *q = &ar->wmi_mgmt_tx_queue;
  
-@@ -4017,6 +4844,7 @@ ath10k_mac_tx_h_get_txpath(struct ath10k *ar,
+@@ -4017,6 +4845,7 @@ ath10k_mac_tx_h_get_txpath(struct ath10k *ar,
  }
  
  static int ath10k_mac_tx_submit(struct ath10k *ar,
@@ -8683,7 +8694,7 @@ index 97e0a7523758..0e616a759952 100644
  				enum ath10k_hw_txrx_mode txmode,
  				enum ath10k_mac_tx_path txpath,
  				struct sk_buff *skb)
-@@ -4026,7 +4854,7 @@ static int ath10k_mac_tx_submit(struct ath10k *ar,
+@@ -4026,7 +4855,7 @@ static int ath10k_mac_tx_submit(struct ath10k *ar,
  
  	switch (txpath) {
  	case ATH10K_MAC_TX_HTT:
@@ -8692,7 +8703,7 @@ index 97e0a7523758..0e616a759952 100644
  		break;
  	case ATH10K_MAC_TX_HTT_MGMT:
  		ret = ath10k_htt_mgmt_tx(htt, skb);
-@@ -4041,8 +4869,9 @@ static int ath10k_mac_tx_submit(struct ath10k *ar,
+@@ -4041,8 +4870,9 @@ static int ath10k_mac_tx_submit(struct ath10k *ar,
  	}
  
  	if (ret) {
@@ -8704,7 +8715,7 @@ index 97e0a7523758..0e616a759952 100644
  		ieee80211_free_txskb(ar->hw, skb);
  	}
  
-@@ -4082,8 +4911,13 @@ static int ath10k_mac_tx(struct ath10k *ar,
+@@ -4082,8 +4912,13 @@ static int ath10k_mac_tx(struct ath10k *ar,
  			ath10k_tx_h_8023(skb);
  		break;
  	case ATH10K_HW_TXRX_RAW:
@@ -8720,7 +8731,7 @@ index 97e0a7523758..0e616a759952 100644
  			WARN_ON_ONCE(1);
  			ieee80211_free_txskb(hw, skb);
  			return -EOPNOTSUPP;
-@@ -4101,7 +4935,7 @@ static int ath10k_mac_tx(struct ath10k *ar,
+@@ -4101,7 +4936,7 @@ static int ath10k_mac_tx(struct ath10k *ar,
  		}
  	}
  
@@ -8729,7 +8740,7 @@ index 97e0a7523758..0e616a759952 100644
  	if (ret) {
  		ath10k_warn(ar, "failed to submit frame: %d\n", ret);
  		return ret;
-@@ -4299,6 +5133,25 @@ static void ath10k_mac_txq_unref(struct ath10k *ar, struct ieee80211_txq *txq)
+@@ -4299,6 +5134,25 @@ static void ath10k_mac_txq_unref(struct ath10k *ar, struct ieee80211_txq *txq)
  	if (!txq)
  		return;
  
@@ -8755,7 +8766,7 @@ index 97e0a7523758..0e616a759952 100644
  	spin_lock_bh(&ar->htt.tx_lock);
  	idr_for_each_entry(&ar->htt.pending_tx, msdu, msdu_id) {
  		cb = ATH10K_SKB_CB(msdu);
-@@ -4396,6 +5249,65 @@ static u16 ath10k_mac_update_airtime(struct ath10k *ar,
+@@ -4396,6 +5250,65 @@ static u16 ath10k_mac_update_airtime(struct ath10k *ar,
  	return airtime;
  }
  
@@ -8821,7 +8832,7 @@ index 97e0a7523758..0e616a759952 100644
  int ath10k_mac_tx_push_txq(struct ieee80211_hw *hw,
  			   struct ieee80211_txq *txq)
  {
-@@ -4404,6 +5316,8 @@ int ath10k_mac_tx_push_txq(struct ieee80211_hw *hw,
+@@ -4404,9 +5317,12 @@ int ath10k_mac_tx_push_txq(struct ieee80211_hw *hw,
  	struct ath10k_txq *artxq = (void *)txq->drv_priv;
  	struct ieee80211_vif *vif = txq->vif;
  	struct ieee80211_sta *sta = txq->sta;
@@ -8830,7 +8841,20 @@ index 97e0a7523758..0e616a759952 100644
  	enum ath10k_hw_txrx_mode txmode;
  	enum ath10k_mac_tx_path txpath;
  	struct sk_buff *skb;
-@@ -4452,6 +5366,44 @@ int ath10k_mac_tx_push_txq(struct ieee80211_hw *hw,
++	struct ath10k_skb_cb *skb_cb;
+ 	struct ieee80211_hdr *hdr;
+ 	size_t skb_len;
+ 	bool is_mgmt, is_presp;
+@@ -4429,6 +5345,8 @@ int ath10k_mac_tx_push_txq(struct ieee80211_hw *hw,
+ 		return -ENOENT;
+ 	}
+ 
++	skb_cb = ATH10K_SKB_CB(skb);
++
+ 	airtime = ath10k_mac_update_airtime(ar, txq, skb);
+ 	ath10k_mac_tx_h_fill_cb(ar, vif, txq, sta, skb, airtime);
+ 
+@@ -4452,6 +5370,45 @@ int ath10k_mac_tx_push_txq(struct ieee80211_hw *hw,
  		spin_unlock_bh(&ar->htt.tx_lock);
  	}
  
@@ -8859,7 +8883,8 @@ index 97e0a7523758..0e616a759952 100644
 +		ath10k_htt_tx_dec_pending(htt);
 +		spin_unlock_bh(&ar->htt.tx_lock);
 +
-+		skb->skb_mstamp_ns = ktime_get_ns();
++		skb_cb->flags |= ATH10K_SKB_F_HAS_TS;
++		skb_cb->timestamp_ns = ktime_get_ns();
 +
 +		// if the deferred tx fails later, we don't decrease this. should be fine...
 +		spin_lock_bh(&ar->htt.tx_lock);
@@ -8875,7 +8900,7 @@ index 97e0a7523758..0e616a759952 100644
  	ret = ath10k_mac_tx(ar, vif, txmode, txpath, skb, false);
  	if (unlikely(ret)) {
  		ath10k_warn(ar, "failed to push frame: %d\n", ret);
-@@ -4600,6 +5552,37 @@ static int ath10k_scan_stop(struct ath10k *ar)
+@@ -4600,6 +5557,37 @@ static int ath10k_scan_stop(struct ath10k *ar)
  	return ret;
  }
  
@@ -8913,7 +8938,7 @@ index 97e0a7523758..0e616a759952 100644
  static void ath10k_scan_abort(struct ath10k *ar)
  {
  	int ret;
-@@ -4652,6 +5635,8 @@ static int ath10k_start_scan(struct ath10k *ar,
+@@ -4652,6 +5640,8 @@ static int ath10k_start_scan(struct ath10k *ar,
  
  	lockdep_assert_held(&ar->conf_mutex);
  
@@ -8922,7 +8947,7 @@ index 97e0a7523758..0e616a759952 100644
  	ret = ath10k_wmi_start_scan(ar, arg);
  	if (ret)
  		return ret;
-@@ -4683,16 +5668,45 @@ static int ath10k_start_scan(struct ath10k *ar,
+@@ -4683,16 +5673,46 @@ static int ath10k_start_scan(struct ath10k *ar,
  /* mac80211 callbacks */
  /**********************/
  
@@ -8961,6 +8986,7 @@ index 97e0a7523758..0e616a759952 100644
  	struct ath10k_htt *htt = &ar->htt;
 +	struct ath10k_peer *peer = NULL;
  	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
++	struct ath10k_skb_cb *skb_cb = ATH10K_SKB_CB(skb);
  	struct ieee80211_vif *vif = info->control.vif;
  	struct ieee80211_sta *sta = control->sta;
  	struct ieee80211_txq *txq = NULL;
@@ -8968,7 +8994,7 @@ index 97e0a7523758..0e616a759952 100644
  	enum ath10k_hw_txrx_mode txmode;
  	enum ath10k_mac_tx_path txpath;
  	bool is_htt;
-@@ -4709,6 +5723,12 @@ static void ath10k_mac_op_tx(struct ieee80211_hw *hw,
+@@ -4709,6 +5729,12 @@ static void ath10k_mac_op_tx(struct ieee80211_hw *hw,
  		  txpath == ATH10K_MAC_TX_HTT_MGMT);
  	is_mgmt = (txpath == ATH10K_MAC_TX_HTT_MGMT);
  
@@ -8981,7 +9007,7 @@ index 97e0a7523758..0e616a759952 100644
  	if (is_htt) {
  		bool is_presp = false;
  
-@@ -4740,6 +5760,39 @@ static void ath10k_mac_op_tx(struct ieee80211_hw *hw,
+@@ -4740,6 +5766,40 @@ static void ath10k_mac_op_tx(struct ieee80211_hw *hw,
  		spin_unlock_bh(&ar->htt.tx_lock);
  	}
  
@@ -9011,7 +9037,8 @@ index 97e0a7523758..0e616a759952 100644
 +		ath10k_htt_tx_dec_pending(htt);
 +		spin_unlock_bh(&ar->htt.tx_lock);
 +
-+		skb->skb_mstamp_ns = ktime_get_ns();
++		skb_cb->flags |= ATH10K_SKB_F_HAS_TS;
++		skb_cb->timestamp_ns = ktime_get_ns();
 +
 +		ieee80211_queue_work(ar->hw, &arvif->pending_tx_work);
 +		return;
@@ -9021,7 +9048,7 @@ index 97e0a7523758..0e616a759952 100644
  	ret = ath10k_mac_tx(ar, vif, txmode, txpath, skb, false);
  	if (ret) {
  		ath10k_warn(ar, "failed to transmit frame: %d\n", ret);
-@@ -5025,6 +6078,9 @@ static void ath10k_mac_setup_ht_vht_cap(struct ath10k *ar)
+@@ -5025,6 +6085,9 @@ static void ath10k_mac_setup_ht_vht_cap(struct ath10k *ar)
  	if (ar->phy_capability & WHAL_WLAN_11G_CAPABILITY) {
  		band = &ar->mac.sbands[NL80211_BAND_2GHZ];
  		band->ht_cap = ht_cap;
@@ -9031,7 +9058,7 @@ index 97e0a7523758..0e616a759952 100644
  	}
  	if (ar->phy_capability & WHAL_WLAN_11A_CAPABILITY) {
  		band = &ar->mac.sbands[NL80211_BAND_5GHZ];
-@@ -5425,7 +6481,6 @@ static void ath10k_stop(struct ieee80211_hw *hw, bool suspend)
+@@ -5425,7 +6488,6 @@ static void ath10k_stop(struct ieee80211_hw *hw, bool suspend)
  	cancel_work_sync(&ar->set_coverage_class_work);
  	cancel_delayed_work_sync(&ar->scan.timeout);
  	cancel_work_sync(&ar->restart_work);
@@ -9039,7 +9066,7 @@ index 97e0a7523758..0e616a759952 100644
  }
  
  static int ath10k_config_ps(struct ath10k *ar)
-@@ -5464,25 +6519,18 @@ static int ath10k_config(struct ieee80211_hw *hw, u32 changed)
+@@ -5464,25 +6526,18 @@ static int ath10k_config(struct ieee80211_hw *hw, u32 changed)
  			ath10k_warn(ar, "failed to recalc monitor: %d\n", ret);
  	}
  
@@ -9069,7 +9096,7 @@ index 97e0a7523758..0e616a759952 100644
  	int nsts;
  	int sound_dim;
  
-@@ -5502,20 +6550,26 @@ static int ath10k_mac_set_txbf_conf(struct ath10k_vif *arvif)
+@@ -5502,20 +6557,26 @@ static int ath10k_mac_set_txbf_conf(struct ath10k_vif *arvif)
  	if (!value)
  		return 0;
  
@@ -9100,7 +9127,7 @@ index 97e0a7523758..0e616a759952 100644
  	return ath10k_wmi_vdev_set_param(ar, arvif->vdev_id,
  					 ar->wmi.vdev_param->txbf, value);
  }
-@@ -5544,6 +6598,66 @@ static void ath10k_update_vif_offload(struct ieee80211_hw *hw,
+@@ -5544,6 +6605,66 @@ static void ath10k_update_vif_offload(struct ieee80211_hw *hw,
  	}
  }
  
@@ -9123,7 +9150,7 @@ index 97e0a7523758..0e616a759952 100644
 +	spin_lock_bh(&arvif->pending_tx_lock);
 +
 +	skb_queue_walk_safe(&arvif->pending_tx_queue, skb, tmp) {
-+		if (now_ns - skb->skb_mstamp_ns > arvif->pending_tx_timeout_ns) {
++		if (now_ns - ATH10K_SKB_CB(skb)->timestamp_ns > arvif->pending_tx_timeout_ns) {
 +			skb_unlink(skb, &arvif->pending_tx_queue);
 +			arvif->pending_tx_len--;
 +
@@ -9167,7 +9194,7 @@ index 97e0a7523758..0e616a759952 100644
  /*
   * TODO:
   * Figure out how to handle WMI_VDEV_SUBTYPE_P2P_DEVICE,
-@@ -5563,6 +6677,7 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
+@@ -5563,6 +6684,7 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
  	int bit;
  	int i;
  	u32 vdev_param;
@@ -9175,7 +9202,7 @@ index 97e0a7523758..0e616a759952 100644
  
  	vif->driver_flags |= IEEE80211_VIF_SUPPORTS_UAPSD;
  
-@@ -5571,9 +6686,17 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
+@@ -5571,9 +6693,17 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
  	memset(arvif, 0, sizeof(*arvif));
  	ath10k_mac_txq_init(vif->txq);
  
@@ -9193,7 +9220,7 @@ index 97e0a7523758..0e616a759952 100644
  	INIT_LIST_HEAD(&arvif->list);
  	INIT_WORK(&arvif->ap_csa_work, ath10k_mac_vif_ap_csa_work);
  	INIT_DELAYED_WORK(&arvif->connection_loss_work,
-@@ -5587,6 +6710,13 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
+@@ -5587,6 +6717,13 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
  		       sizeof(arvif->bitrate_mask.control[i].vht_mcs));
  	}
  
@@ -9207,7 +9234,7 @@ index 97e0a7523758..0e616a759952 100644
  	if (ar->num_peers >= ar->max_num_peers) {
  		ath10k_warn(ar, "refusing vdev creation due to insufficient peer entry resources in firmware\n");
  		ret = -ENOBUFS;
-@@ -5621,6 +6751,7 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
+@@ -5621,6 +6758,7 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
  					(ar, WMI_VDEV_SUBTYPE_P2P_CLIENT);
  		break;
  	case NL80211_IFTYPE_ADHOC:
@@ -9215,7 +9242,7 @@ index 97e0a7523758..0e616a759952 100644
  		arvif->vdev_type = WMI_VDEV_TYPE_IBSS;
  		break;
  	case NL80211_IFTYPE_MESH_POINT:
-@@ -5675,6 +6806,7 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
+@@ -5675,6 +6813,7 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
  	 * become corrupted, e.g. have garbled IEs or out-of-date TIM bitmap.
  	 */
  	if (vif->type == NL80211_IFTYPE_ADHOC ||
@@ -9223,7 +9250,7 @@ index 97e0a7523758..0e616a759952 100644
  	    vif->type == NL80211_IFTYPE_MESH_POINT ||
  	    vif->type == NL80211_IFTYPE_AP) {
  		if (ar->bus_param.dev_type == ATH10K_DEV_TYPE_HL) {
-@@ -5801,6 +6933,10 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
+@@ -5801,6 +6940,10 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
  		arvif->peer_id = HTT_INVALID_PEERID;
  	}
  
@@ -9234,7 +9261,7 @@ index 97e0a7523758..0e616a759952 100644
  	if (arvif->vdev_type == WMI_VDEV_TYPE_AP) {
  		ret = ath10k_mac_set_kickout(arvif);
  		if (ret) {
-@@ -5877,6 +7013,19 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
+@@ -5877,6 +7020,19 @@ static int ath10k_add_interface(struct ieee80211_hw *hw,
  		}
  	}
  
@@ -9254,7 +9281,7 @@ index 97e0a7523758..0e616a759952 100644
  	spin_lock_bh(&ar->htt.tx_lock);
  	if (!ar->tx_paused)
  		ieee80211_wake_queue(ar->hw, arvif->vdev_id);
-@@ -5930,12 +7079,15 @@ static void ath10k_remove_interface(struct ieee80211_hw *hw,
+@@ -5930,12 +7086,15 @@ static void ath10k_remove_interface(struct ieee80211_hw *hw,
  	struct ath10k *ar = hw->priv;
  	struct ath10k_vif *arvif = (void *)vif->drv_priv;
  	struct ath10k_peer *peer;
@@ -9270,7 +9297,7 @@ index 97e0a7523758..0e616a759952 100644
  	mutex_lock(&ar->conf_mutex);
  
  	ret = ath10k_spectral_vif_stop(arvif);
-@@ -5943,6 +7095,16 @@ static void ath10k_remove_interface(struct ieee80211_hw *hw,
+@@ -5943,6 +7102,16 @@ static void ath10k_remove_interface(struct ieee80211_hw *hw,
  		ath10k_warn(ar, "failed to stop spectral for vdev %i: %d\n",
  			    arvif->vdev_id, ret);
  
@@ -9287,7 +9314,7 @@ index 97e0a7523758..0e616a759952 100644
  	ar->free_vdev_map |= 1LL << arvif->vdev_id;
  	spin_lock_bh(&ar->data_lock);
  	list_del(&arvif->list);
-@@ -5969,10 +7131,13 @@ static void ath10k_remove_interface(struct ieee80211_hw *hw,
+@@ -5969,10 +7138,13 @@ static void ath10k_remove_interface(struct ieee80211_hw *hw,
  		ath10k_warn(ar, "failed to delete WMI vdev %i: %d\n",
  			    arvif->vdev_id, ret);
  
@@ -9305,7 +9332,7 @@ index 97e0a7523758..0e616a759952 100644
  	}
  
  	/* Some firmware revisions don't notify host about self-peer removal
-@@ -5998,8 +7163,8 @@ static void ath10k_remove_interface(struct ieee80211_hw *hw,
+@@ -5998,8 +7170,8 @@ static void ath10k_remove_interface(struct ieee80211_hw *hw,
  			continue;
  
  		if (peer->vif == vif) {
@@ -9316,7 +9343,7 @@ index 97e0a7523758..0e616a759952 100644
  			peer->vif = NULL;
  		}
  	}
-@@ -6062,6 +7227,10 @@ static void ath10k_configure_filter(struct ieee80211_hw *hw,
+@@ -6062,6 +7234,10 @@ static void ath10k_configure_filter(struct ieee80211_hw *hw,
  
  	*total_flags &= supported;
  
@@ -9327,7 +9354,7 @@ index 97e0a7523758..0e616a759952 100644
  	ar->filter_flags = *total_flags;
  
  	ret = ath10k_monitor_recalc(ar);
-@@ -6085,6 +7254,10 @@ static void ath10k_recalculate_mgmt_rate(struct ath10k *ar,
+@@ -6085,6 +7261,10 @@ static void ath10k_recalculate_mgmt_rate(struct ath10k *ar,
  
  	lockdep_assert_held(&ar->conf_mutex);
  
@@ -9338,7 +9365,7 @@ index 97e0a7523758..0e616a759952 100644
  	sband = ar->hw->wiphy->bands[def->chan->band];
  	basic_rate_idx = ffs(vif->bss_conf.basic_rates) - 1;
  	bitrate = sband->bitrates[basic_rate_idx].bitrate;
-@@ -6095,6 +7268,7 @@ static void ath10k_recalculate_mgmt_rate(struct ath10k *ar,
+@@ -6095,6 +7275,7 @@ static void ath10k_recalculate_mgmt_rate(struct ath10k *ar,
  		return;
  	}
  
@@ -9346,7 +9373,7 @@ index 97e0a7523758..0e616a759952 100644
  	vdev_param = ar->wmi.vdev_param->mgmt_rate;
  	ret = ath10k_wmi_vdev_set_param(ar, arvif->vdev_id, vdev_param,
  					hw_rate_code);
-@@ -6118,7 +7292,7 @@ static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
+@@ -6118,7 +7299,7 @@ static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
  
  	mutex_lock(&ar->conf_mutex);
  
@@ -9355,7 +9382,7 @@ index 97e0a7523758..0e616a759952 100644
  		ath10k_control_ibss(arvif, vif);
  
  	if (changed & BSS_CHANGED_BEACON_INT) {
-@@ -6213,17 +7387,17 @@ static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
+@@ -6213,17 +7394,17 @@ static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
  	if (changed & BSS_CHANGED_ERP_CTS_PROT) {
  		arvif->use_cts_prot = info->use_cts_prot;
  
@@ -9378,7 +9405,7 @@ index 97e0a7523758..0e616a759952 100644
  	}
  
  	if (changed & BSS_CHANGED_ERP_SLOT) {
-@@ -6318,24 +7492,30 @@ static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
+@@ -6318,24 +7499,30 @@ static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
  		rate = ATH10K_HW_RATECODE(hw_value, 0, preamble);
  
  		ath10k_dbg(ar, ATH10K_DBG_MAC,
@@ -9426,7 +9453,7 @@ index 97e0a7523758..0e616a759952 100644
  	}
  
  	if (changed & BSS_CHANGED_BASIC_RATES &&
-@@ -6356,6 +7536,12 @@ static void ath10k_mac_op_set_coverage_class(struct ieee80211_hw *hw, s16 value)
+@@ -6356,6 +7543,12 @@ static void ath10k_mac_op_set_coverage_class(struct ieee80211_hw *hw, s16 value)
  		WARN_ON_ONCE(1);
  		return;
  	}
@@ -9439,7 +9466,7 @@ index 97e0a7523758..0e616a759952 100644
  	ar->hw_params.hw_ops->set_coverage_class(ar, value);
  }
  
-@@ -6388,6 +7574,30 @@ static int ath10k_mac_tdls_vif_stations_count(struct ieee80211_hw *hw,
+@@ -6388,6 +7581,30 @@ static int ath10k_mac_tdls_vif_stations_count(struct ieee80211_hw *hw,
  	return data.num_tdls_stations;
  }
  
@@ -9470,7 +9497,7 @@ index 97e0a7523758..0e616a759952 100644
  static int ath10k_hw_scan(struct ieee80211_hw *hw,
  			  struct ieee80211_vif *vif,
  			  struct ieee80211_scan_request *hw_req)
-@@ -6395,10 +7605,11 @@ static int ath10k_hw_scan(struct ieee80211_hw *hw,
+@@ -6395,10 +7612,11 @@ static int ath10k_hw_scan(struct ieee80211_hw *hw,
  	struct ath10k *ar = hw->priv;
  	struct ath10k_vif *arvif = (void *)vif->drv_priv;
  	struct cfg80211_scan_request *req = &hw_req->req;
@@ -9483,7 +9510,7 @@ index 97e0a7523758..0e616a759952 100644
  
  	mutex_lock(&ar->conf_mutex);
  
-@@ -6408,6 +7619,9 @@ static int ath10k_hw_scan(struct ieee80211_hw *hw,
+@@ -6408,6 +7626,9 @@ static int ath10k_hw_scan(struct ieee80211_hw *hw,
  	}
  
  	spin_lock_bh(&ar->data_lock);
@@ -9493,7 +9520,7 @@ index 97e0a7523758..0e616a759952 100644
  	switch (ar->scan.state) {
  	case ATH10K_SCAN_IDLE:
  		reinit_completion(&ar->scan.started);
-@@ -6421,6 +7635,7 @@ static int ath10k_hw_scan(struct ieee80211_hw *hw,
+@@ -6421,6 +7642,7 @@ static int ath10k_hw_scan(struct ieee80211_hw *hw,
  	case ATH10K_SCAN_RUNNING:
  	case ATH10K_SCAN_ABORTING:
  		ret = -EBUSY;
@@ -9501,7 +9528,7 @@ index 97e0a7523758..0e616a759952 100644
  		break;
  	}
  	spin_unlock_bh(&ar->data_lock);
-@@ -6428,56 +7643,84 @@ static int ath10k_hw_scan(struct ieee80211_hw *hw,
+@@ -6428,56 +7650,84 @@ static int ath10k_hw_scan(struct ieee80211_hw *hw,
  	if (ret)
  		goto exit;
  
@@ -9611,7 +9638,7 @@ index 97e0a7523758..0e616a759952 100644
  	if (ret) {
  		ath10k_warn(ar, "failed to start hw scan: %d\n", ret);
  		spin_lock_bh(&ar->data_lock);
-@@ -6489,6 +7732,8 @@ static int ath10k_hw_scan(struct ieee80211_hw *hw,
+@@ -6489,6 +7739,8 @@ static int ath10k_hw_scan(struct ieee80211_hw *hw,
  				     msecs_to_jiffies(scan_timeout));
  
  exit:
@@ -9620,7 +9647,7 @@ index 97e0a7523758..0e616a759952 100644
  	mutex_unlock(&ar->conf_mutex);
  	return ret;
  }
-@@ -6498,6 +7743,8 @@ static void ath10k_cancel_hw_scan(struct ieee80211_hw *hw,
+@@ -6498,6 +7750,8 @@ static void ath10k_cancel_hw_scan(struct ieee80211_hw *hw,
  {
  	struct ath10k *ar = hw->priv;
  
@@ -9629,7 +9656,7 @@ index 97e0a7523758..0e616a759952 100644
  	mutex_lock(&ar->conf_mutex);
  	ath10k_scan_abort(ar);
  	mutex_unlock(&ar->conf_mutex);
-@@ -6573,8 +7820,12 @@ static int ath10k_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
+@@ -6573,8 +7827,12 @@ static int ath10k_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
  	if (arvif->nohwcrypt)
  		return 1;
  
@@ -9643,7 +9670,7 @@ index 97e0a7523758..0e616a759952 100644
  
  	mutex_lock(&ar->conf_mutex);
  
-@@ -6754,7 +8005,7 @@ static void ath10k_sta_rc_update_wk(struct work_struct *wk)
+@@ -6754,7 +8012,7 @@ static void ath10k_sta_rc_update_wk(struct work_struct *wk)
  	arvif = arsta->arvif;
  	ar = arvif->ar;
  
@@ -9652,7 +9679,7 @@ index 97e0a7523758..0e616a759952 100644
  		return;
  
  	band = def.chan->band;
-@@ -6823,8 +8074,8 @@ static void ath10k_sta_rc_update_wk(struct work_struct *wk)
+@@ -6823,8 +8081,8 @@ static void ath10k_sta_rc_update_wk(struct work_struct *wk)
  	}
  
  	if (changed & IEEE80211_RC_SUPP_RATES_CHANGED) {
@@ -9663,7 +9690,7 @@ index 97e0a7523758..0e616a759952 100644
  
  		err = ath10k_station_assoc(ar, arvif->vif, sta, true);
  		if (err)
-@@ -7041,7 +8292,7 @@ ath10k_mac_tid_bitrate_config(struct ath10k *ar,
+@@ -7041,7 +8299,7 @@ ath10k_mac_tid_bitrate_config(struct ath10k *ar,
  	u8 nss, rate;
  	int vht_num_rates, ret;
  
@@ -9672,7 +9699,7 @@ index 97e0a7523758..0e616a759952 100644
  		return -EINVAL;
  
  	if (txrate_type == NL80211_TX_RATE_AUTOMATIC) {
-@@ -7480,6 +8731,22 @@ static void ath10k_mac_vif_stations_tid_conf(void *data,
+@@ -7480,6 +8738,22 @@ static void ath10k_mac_vif_stations_tid_conf(void *data,
  	ieee80211_queue_work(iter_data->ar->hw, &arsta->tid_config_wk);
  }
  
@@ -9695,7 +9722,7 @@ index 97e0a7523758..0e616a759952 100644
  static int ath10k_sta_state(struct ieee80211_hw *hw,
  			    struct ieee80211_vif *vif,
  			    struct ieee80211_sta *sta,
-@@ -7493,6 +8760,10 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
+@@ -7493,6 +8767,10 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
  	int ret = 0;
  	int i;
  
@@ -9706,7 +9733,7 @@ index 97e0a7523758..0e616a759952 100644
  	if (old_state == IEEE80211_STA_NOTEXIST &&
  	    new_state == IEEE80211_STA_NONE) {
  		memset(arsta, 0, sizeof(*arsta));
-@@ -7687,12 +8958,13 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
+@@ -7687,12 +8965,13 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
  		   new_state == IEEE80211_STA_ASSOC &&
  		   (vif->type == NL80211_IFTYPE_AP ||
  		    vif->type == NL80211_IFTYPE_MESH_POINT ||
@@ -9723,7 +9750,7 @@ index 97e0a7523758..0e616a759952 100644
  
  		ret = ath10k_station_assoc(ar, vif, sta, false);
  		if (ret)
-@@ -7704,8 +8976,8 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
+@@ -7704,8 +8983,8 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
  		/*
  		 * Tdls station authorized.
  		 */
@@ -9734,7 +9761,7 @@ index 97e0a7523758..0e616a759952 100644
  
  		ret = ath10k_station_assoc(ar, vif, sta, false);
  		if (ret) {
-@@ -7723,7 +8995,8 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
+@@ -7723,7 +9002,8 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
  		    new_state == IEEE80211_STA_AUTH &&
  		    (vif->type == NL80211_IFTYPE_AP ||
  		     vif->type == NL80211_IFTYPE_MESH_POINT ||
@@ -9744,7 +9771,7 @@ index 97e0a7523758..0e616a759952 100644
  		/*
  		 * Disassociation.
  		 */
-@@ -7737,6 +9010,25 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
+@@ -7737,6 +9017,25 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
  	}
  exit:
  	mutex_unlock(&ar->conf_mutex);
@@ -9770,7 +9797,7 @@ index 97e0a7523758..0e616a759952 100644
  	return ret;
  }
  
-@@ -7859,18 +9151,30 @@ static int ath10k_conf_tx(struct ieee80211_hw *hw,
+@@ -7859,18 +9158,30 @@ static int ath10k_conf_tx(struct ieee80211_hw *hw,
  	mutex_lock(&ar->conf_mutex);
  
  	switch (ac) {
@@ -9813,7 +9840,7 @@ index 97e0a7523758..0e616a759952 100644
  	}
  
  	if (WARN_ON(!p)) {
-@@ -7925,7 +9229,7 @@ static int ath10k_remain_on_channel(struct ieee80211_hw *hw,
+@@ -7925,7 +9236,7 @@ static int ath10k_remain_on_channel(struct ieee80211_hw *hw,
  {
  	struct ath10k *ar = hw->priv;
  	struct ath10k_vif *arvif = (void *)vif->drv_priv;
@@ -9822,7 +9849,7 @@ index 97e0a7523758..0e616a759952 100644
  	int ret = 0;
  	u32 scan_time_msec;
  
-@@ -7962,20 +9266,38 @@ static int ath10k_remain_on_channel(struct ieee80211_hw *hw,
+@@ -7962,20 +9273,38 @@ static int ath10k_remain_on_channel(struct ieee80211_hw *hw,
  
  	scan_time_msec = ar->hw->wiphy->max_remain_on_channel_duration * 2;
  
@@ -9875,7 +9902,7 @@ index 97e0a7523758..0e616a759952 100644
  	if (ret) {
  		ath10k_warn(ar, "failed to start roc scan: %d\n", ret);
  		spin_lock_bh(&ar->data_lock);
-@@ -8001,6 +9323,8 @@ static int ath10k_remain_on_channel(struct ieee80211_hw *hw,
+@@ -8001,6 +9330,8 @@ static int ath10k_remain_on_channel(struct ieee80211_hw *hw,
  
  	ret = 0;
  exit:
@@ -9884,7 +9911,7 @@ index 97e0a7523758..0e616a759952 100644
  	mutex_unlock(&ar->conf_mutex);
  	return ret;
  }
-@@ -8070,58 +9394,112 @@ static int ath10k_mac_op_set_frag_threshold(struct ieee80211_hw *hw, u32 value)
+@@ -8070,58 +9401,112 @@ static int ath10k_mac_op_set_frag_threshold(struct ieee80211_hw *hw, u32 value)
  
  void ath10k_mac_wait_tx_complete(struct ath10k *ar)
  {
@@ -10041,7 +10068,7 @@ index 97e0a7523758..0e616a759952 100644
  }
  
  /* TODO: Implement this function properly
-@@ -8151,12 +9529,7 @@ static void ath10k_reconfig_complete(struct ieee80211_hw *hw,
+@@ -8151,12 +9536,7 @@ static void ath10k_reconfig_complete(struct ieee80211_hw *hw,
  		ath10k_info(ar, "device successfully recovered\n");
  		ar->state = ATH10K_STATE_ON;
  		ieee80211_wake_queues(ar->hw);
@@ -10055,7 +10082,7 @@ index 97e0a7523758..0e616a759952 100644
  		if (ar->hw_params.hw_restart_disconnect) {
  			list_for_each_entry(arvif, &ar->arvifs, list) {
  				if (arvif->is_up && arvif->vdev_type == WMI_VDEV_TYPE_STA)
-@@ -8190,7 +9563,8 @@ ath10k_mac_update_bss_chan_survey(struct ath10k *ar,
+@@ -8190,7 +9570,8 @@ ath10k_mac_update_bss_chan_survey(struct ath10k *ar,
  
  	ret = ath10k_wmi_pdev_bss_chan_info_request(ar, type);
  	if (ret) {
@@ -10065,7 +10092,7 @@ index 97e0a7523758..0e616a759952 100644
  		return;
  	}
  
-@@ -8291,7 +9665,8 @@ ath10k_mac_bitrate_mask_get_single_nss(struct ath10k *ar,
+@@ -8291,7 +9672,8 @@ ath10k_mac_bitrate_mask_get_single_nss(struct ath10k *ar,
  }
  
  static int ath10k_mac_set_fixed_rate_params(struct ath10k_vif *arvif,
@@ -10075,7 +10102,7 @@ index 97e0a7523758..0e616a759952 100644
  {
  	struct ath10k *ar = arvif->ar;
  	u32 vdev_param;
-@@ -8299,14 +9674,15 @@ static int ath10k_mac_set_fixed_rate_params(struct ath10k_vif *arvif,
+@@ -8299,14 +9681,15 @@ static int ath10k_mac_set_fixed_rate_params(struct ath10k_vif *arvif,
  
  	lockdep_assert_held(&ar->conf_mutex);
  
@@ -10094,7 +10121,7 @@ index 97e0a7523758..0e616a759952 100644
  		return ret;
  	}
  
-@@ -8343,6 +9719,13 @@ ath10k_mac_can_set_bitrate_mask(struct ath10k *ar,
+@@ -8343,6 +9726,13 @@ ath10k_mac_can_set_bitrate_mask(struct ath10k *ar,
  	int i;
  	u16 vht_mcs;
  
@@ -10108,7 +10135,7 @@ index 97e0a7523758..0e616a759952 100644
  	/* Due to firmware limitation in WMI_PEER_ASSOC_CMDID it is impossible
  	 * to express all VHT MCS rate masks. Effectively only the following
  	 * ranges can be used: none, 0-7, 0-8 and 0-9.
-@@ -8426,6 +9809,27 @@ static void ath10k_mac_clr_bitrate_mask_iter(void *data,
+@@ -8426,6 +9816,27 @@ static void ath10k_mac_clr_bitrate_mask_iter(void *data,
  			    sta->addr, err);
  }
  
@@ -10136,7 +10163,7 @@ index 97e0a7523758..0e616a759952 100644
  static int ath10k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
  					  struct ieee80211_vif *vif,
  					  const struct cfg80211_bitrate_mask *mask)
-@@ -8446,10 +9850,22 @@ static int ath10k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
+@@ -8446,10 +9857,22 @@ static int ath10k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
  	u8 vht_pfr;
  	bool update_bitrate_mask = true;
  
@@ -10162,7 +10189,7 @@ index 97e0a7523758..0e616a759952 100644
  	ht_mcs_mask = mask->control[band].ht_mcs;
  	vht_mcs_mask = mask->control[band].vht_mcs;
  	ldpc = !!(ar->ht_cap_info & WMI_HT_CAP_LDPC);
-@@ -8462,9 +9878,9 @@ static int ath10k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
+@@ -8462,9 +9885,9 @@ static int ath10k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
  			     ar->normal_mode_fw.fw_file.fw_features);
  	if (allow_pfr) {
  		mutex_lock(&ar->conf_mutex);
@@ -10175,7 +10202,7 @@ index 97e0a7523758..0e616a759952 100644
  		mutex_unlock(&ar->conf_mutex);
  	}
  
-@@ -8478,10 +9894,12 @@ static int ath10k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
+@@ -8478,10 +9901,12 @@ static int ath10k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
  				    arvif->vdev_id, ret);
  			return ret;
  		}
@@ -10188,7 +10215,7 @@ index 97e0a7523758..0e616a759952 100644
  	} else {
  		rate = WMI_FIXED_RATE_NONE;
  		nss = min(ar->num_rf_chains,
-@@ -8523,13 +9941,19 @@ static int ath10k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
+@@ -8523,13 +9948,19 @@ static int ath10k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
  
  	mutex_lock(&ar->conf_mutex);
  
@@ -10209,7 +10236,7 @@ index 97e0a7523758..0e616a759952 100644
  exit:
  	mutex_unlock(&ar->conf_mutex);
  
-@@ -8623,6 +10047,49 @@ static void ath10k_sta_rc_update(struct ieee80211_hw *hw,
+@@ -8623,6 +10054,49 @@ static void ath10k_sta_rc_update(struct ieee80211_hw *hw,
  	ieee80211_queue_work(hw, &arsta->update_wk);
  }
  
@@ -10259,7 +10286,7 @@ index 97e0a7523758..0e616a759952 100644
  static void ath10k_offset_tsf(struct ieee80211_hw *hw,
  			      struct ieee80211_vif *vif, s64 tsf_offset)
  {
-@@ -9347,6 +10814,15 @@ static void ath10k_sta_statistics(struct ieee80211_hw *hw,
+@@ -9347,6 +10821,15 @@ static void ath10k_sta_statistics(struct ieee80211_hw *hw,
  	struct ath10k_sta *arsta = (struct ath10k_sta *)sta->drv_priv;
  	struct ath10k *ar = arsta->arvif->ar;
  
@@ -10275,7 +10302,7 @@ index 97e0a7523758..0e616a759952 100644
  	if (!ath10k_peer_stats_enabled(ar))
  		return;
  
-@@ -9483,9 +10959,13 @@ static const struct ieee80211_ops ath10k_ops = {
+@@ -9483,9 +10966,13 @@ static const struct ieee80211_ops ath10k_ops = {
  	.set_bitrate_mask		= ath10k_mac_op_set_bitrate_mask,
  	.sta_rc_update			= ath10k_sta_rc_update,
  	.offset_tsf			= ath10k_offset_tsf,
@@ -10289,7 +10316,7 @@ index 97e0a7523758..0e616a759952 100644
  	.get_et_strings			= ath10k_debug_get_et_strings,
  	.add_chanctx			= ath10k_mac_op_add_chanctx,
  	.remove_chanctx			= ath10k_mac_op_remove_chanctx,
-@@ -9509,6 +10989,9 @@ static const struct ieee80211_ops ath10k_ops = {
+@@ -9509,6 +10996,9 @@ static const struct ieee80211_ops ath10k_ops = {
  	.sta_add_debugfs		= ath10k_sta_add_debugfs,
  #endif
  	.set_sar_specs			= ath10k_mac_set_sar_specs,
@@ -10299,7 +10326,7 @@ index 97e0a7523758..0e616a759952 100644
  };
  
  #define CHAN2G(_channel, _freq, _flags) { \
-@@ -9574,8 +11057,17 @@ static const struct ieee80211_channel ath10k_5ghz_channels[] = {
+@@ -9574,8 +11064,17 @@ static const struct ieee80211_channel ath10k_5ghz_channels[] = {
  	CHAN5G(165, 5825, 0),
  	CHAN5G(169, 5845, 0),
  	CHAN5G(173, 5865, 0),
@@ -10317,7 +10344,7 @@ index 97e0a7523758..0e616a759952 100644
  };
  
  struct ath10k *ath10k_mac_create(size_t priv_size)
-@@ -9646,7 +11138,31 @@ static const struct ieee80211_iface_limit ath10k_10x_if_limits[] = {
+@@ -9646,7 +11145,31 @@ static const struct ieee80211_iface_limit ath10k_10x_if_limits[] = {
  	},
  };
  
@@ -10350,7 +10377,7 @@ index 97e0a7523758..0e616a759952 100644
  	{
  		.limits = ath10k_if_limits,
  		.n_limits = ARRAY_SIZE(ath10k_if_limits),
-@@ -9656,7 +11172,7 @@ static const struct ieee80211_iface_combination ath10k_if_comb[] = {
+@@ -9656,7 +11179,7 @@ static const struct ieee80211_iface_combination ath10k_if_comb[] = {
  	},
  };
  
@@ -10359,7 +10386,7 @@ index 97e0a7523758..0e616a759952 100644
  	{
  		.limits = ath10k_10x_if_limits,
  		.n_limits = ARRAY_SIZE(ath10k_10x_if_limits),
-@@ -9668,7 +11184,9 @@ static const struct ieee80211_iface_combination ath10k_10x_if_comb[] = {
+@@ -9668,7 +11191,9 @@ static const struct ieee80211_iface_combination ath10k_10x_if_comb[] = {
  		.radar_detect_widths =	BIT(NL80211_CHAN_WIDTH_20_NOHT) |
  					BIT(NL80211_CHAN_WIDTH_20) |
  					BIT(NL80211_CHAN_WIDTH_40) |
@@ -10370,7 +10397,7 @@ index 97e0a7523758..0e616a759952 100644
  #endif
  	},
  };
-@@ -9685,7 +11203,8 @@ static const struct ieee80211_iface_limit ath10k_tlv_if_limit[] = {
+@@ -9685,7 +11210,8 @@ static const struct ieee80211_iface_limit ath10k_tlv_if_limit[] = {
  			 BIT(NL80211_IFTYPE_MESH_POINT) |
  #endif
  			 BIT(NL80211_IFTYPE_P2P_CLIENT) |
@@ -10380,7 +10407,7 @@ index 97e0a7523758..0e616a759952 100644
  	},
  	{
  		.max = 1,
-@@ -9725,9 +11244,32 @@ static const struct ieee80211_iface_limit ath10k_tlv_if_limit_ibss[] = {
+@@ -9725,9 +11251,32 @@ static const struct ieee80211_iface_limit ath10k_tlv_if_limit_ibss[] = {
  		.max = 1,
  		.types = BIT(NL80211_IFTYPE_ADHOC),
  	},
@@ -10414,7 +10441,7 @@ index 97e0a7523758..0e616a759952 100644
   * underestimate hw/fw capabilities.
   */
  static struct ieee80211_iface_combination ath10k_tlv_if_comb[] = {
-@@ -9819,6 +11361,46 @@ ieee80211_iface_combination ath10k_10_4_bcn_int_if_comb[] = {
+@@ -9819,6 +11368,46 @@ ieee80211_iface_combination ath10k_10_4_bcn_int_if_comb[] = {
  	},
  };
  
@@ -10461,7 +10488,7 @@ index 97e0a7523758..0e616a759952 100644
  static void ath10k_get_arvif_iter(void *data, u8 *mac,
  				  struct ieee80211_vif *vif)
  {
-@@ -9946,10 +11528,72 @@ static int ath10k_mac_init_rd(struct ath10k *ar)
+@@ -9946,10 +11535,72 @@ static int ath10k_mac_init_rd(struct ath10k *ar)
  		rd = ar->hw_eeprom_rd;
  	}
  
@@ -10535,7 +10562,7 @@ index 97e0a7523758..0e616a759952 100644
  int ath10k_mac_register(struct ath10k *ar)
  {
  	static const u32 cipher_suites[] = {
-@@ -10037,7 +11681,8 @@ int ath10k_mac_register(struct ath10k *ar)
+@@ -10037,7 +11688,8 @@ int ath10k_mac_register(struct ath10k *ar)
  	ar->hw->wiphy->interface_modes =
  		BIT(NL80211_IFTYPE_STATION) |
  		BIT(NL80211_IFTYPE_AP) |
@@ -10545,7 +10572,7 @@ index 97e0a7523758..0e616a759952 100644
  
  	ar->hw->wiphy->available_antennas_rx = ar->cfg_rx_chainmask;
  	ar->hw->wiphy->available_antennas_tx = ar->cfg_tx_chainmask;
-@@ -10062,13 +11707,15 @@ int ath10k_mac_register(struct ath10k *ar)
+@@ -10062,13 +11714,15 @@ int ath10k_mac_register(struct ath10k *ar)
  	ieee80211_hw_set(ar->hw, AP_LINK_PS);
  	ieee80211_hw_set(ar->hw, SPECTRUM_MGMT);
  	ieee80211_hw_set(ar->hw, SUPPORT_FAST_XMIT);
@@ -10562,7 +10589,7 @@ index 97e0a7523758..0e616a759952 100644
  
  	if (!test_bit(ATH10K_FLAG_RAW_MODE, &ar->dev_flags))
  		ieee80211_hw_set(ar->hw, SW_CRYPTO_CONTROL);
-@@ -10151,6 +11798,7 @@ int ath10k_mac_register(struct ath10k *ar)
+@@ -10151,6 +11805,7 @@ int ath10k_mac_register(struct ath10k *ar)
  	}
  
  	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_VHT_IBSS);
@@ -10570,7 +10597,7 @@ index 97e0a7523758..0e616a759952 100644
  	wiphy_ext_feature_set(ar->hw->wiphy,
  			      NL80211_EXT_FEATURE_SET_SCAN_DWELL);
  	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_AQL);
-@@ -10212,50 +11860,119 @@ int ath10k_mac_register(struct ath10k *ar)
+@@ -10212,50 +11867,119 @@ int ath10k_mac_register(struct ath10k *ar)
  
  	switch (ar->running_fw->fw_file.wmi_op_version) {
  	case ATH10K_FW_WMI_OP_VERSION_MAIN:
@@ -10712,7 +10739,7 @@ index 97e0a7523758..0e616a759952 100644
  	if (ar->hw_params.dynamic_sar_support)
  		ar->hw->wiphy->sar_capa = &ath10k_sar_capa;
  
-@@ -10282,6 +11999,7 @@ int ath10k_mac_register(struct ath10k *ar)
+@@ -10282,6 +12006,7 @@ int ath10k_mac_register(struct ath10k *ar)
  	if (!ar->hw_params.hw_ops->set_coverage_class)
  		ar->ops->set_coverage_class = NULL;
  
@@ -10720,7 +10747,7 @@ index 97e0a7523758..0e616a759952 100644
  	ret = ath_regd_init(&ar->ath_common.regulatory, ar->hw->wiphy,
  			    ath10k_reg_notifier);
  	if (ret) {
-@@ -10312,13 +12030,24 @@ int ath10k_mac_register(struct ath10k *ar)
+@@ -10312,13 +12037,24 @@ int ath10k_mac_register(struct ath10k *ar)
  
  	ar->hw->weight_multiplier = ATH10K_AIRTIME_WEIGHT_MULTIPLIER;
  
@@ -10797,7 +10824,7 @@ index 98d83a26ea60..9c8b5951a378 100644
 +
  #endif /* _MAC_H_ */
 diff --git a/drivers/net/wireless/ath/ath10k/pci.c b/drivers/net/wireless/ath/ath10k/pci.c
-index c52a16f8078f..478cf4fa1fc0 100644
+index c52a16f8078f..a9bc66448f40 100644
 --- a/drivers/net/wireless/ath/ath10k/pci.c
 +++ b/drivers/net/wireless/ath/ath10k/pci.c
 @@ -1017,6 +1017,22 @@ static int ath10k_pci_diag_read32(struct ath10k *ar, u32 address, u32 *value)
@@ -11771,10 +11798,10 @@ index f3f6b5954b27..ee9c7cf36201 100644
  		return PTR_ERR(skb);
  
 diff --git a/drivers/net/wireless/ath/ath10k/wmi-tlv.c b/drivers/net/wireless/ath/ath10k/wmi-tlv.c
-index 16d07d619b4d..7854ec57a623 100644
+index ba1294c8ee39..edb65cdc5665 100644
 --- a/drivers/net/wireless/ath/ath10k/wmi-tlv.c
 +++ b/drivers/net/wireless/ath/ath10k/wmi-tlv.c
-@@ -2234,7 +2234,7 @@ ath10k_wmi_tlv_op_gen_vdev_start(struct ath10k *ar,
+@@ -2238,7 +2238,7 @@ ath10k_wmi_tlv_op_gen_vdev_start(struct ath10k *ar,
  	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_STRUCT_CHANNEL);
  	tlv->len = __cpu_to_le16(sizeof(*ch));
  	ch = (void *)tlv->value;
@@ -11783,7 +11810,7 @@ index 16d07d619b4d..7854ec57a623 100644
  
  	ptr += sizeof(*tlv);
  	ptr += sizeof(*ch);
-@@ -2874,7 +2874,7 @@ ath10k_wmi_tlv_op_gen_scan_chan_list(struct ath10k *ar,
+@@ -2878,7 +2878,7 @@ ath10k_wmi_tlv_op_gen_scan_chan_list(struct ath10k *ar,
  		tlv->len = __cpu_to_le16(sizeof(*ci));
  		ci = (void *)tlv->value;
  
@@ -11792,7 +11819,7 @@ index 16d07d619b4d..7854ec57a623 100644
  
  		chans += sizeof(*tlv);
  		chans += sizeof(*ci);
-@@ -2988,7 +2988,7 @@ ath10k_wmi_tlv_op_gen_pdev_set_wmm(struct ath10k *ar,
+@@ -2992,7 +2992,7 @@ ath10k_wmi_tlv_op_gen_pdev_set_wmm(struct ath10k *ar,
  }
  
  static struct sk_buff *
@@ -11801,7 +11828,7 @@ index 16d07d619b4d..7854ec57a623 100644
  {
  	struct wmi_request_stats_cmd *cmd;
  	struct wmi_tlv *tlv;
-@@ -3610,7 +3610,7 @@ ath10k_wmi_tlv_op_gen_tdls_peer_update(struct ath10k *ar,
+@@ -3614,7 +3614,7 @@ ath10k_wmi_tlv_op_gen_tdls_peer_update(struct ath10k *ar,
  		tlv->tag = __cpu_to_le16(WMI_TLV_TAG_STRUCT_CHANNEL);
  		tlv->len = __cpu_to_le16(sizeof(*chan));
  		chan = (void *)tlv->value;
@@ -11811,15 +11838,10 @@ index 16d07d619b4d..7854ec57a623 100644
  		ptr += sizeof(*tlv);
  		ptr += sizeof(*chan);
 diff --git a/drivers/net/wireless/ath/ath10k/wmi.c b/drivers/net/wireless/ath/ath10k/wmi.c
-index 408f062a4306..41916e178ab4 100644
+index c9f41309d18d..ad45ec1c3322 100644
 --- a/drivers/net/wireless/ath/ath10k/wmi.c
 +++ b/drivers/net/wireless/ath/ath10k/wmi.c
-@@ -4,11 +4,11 @@
-  * Copyright (c) 2011-2017 Qualcomm Atheros, Inc.
-  * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
-  * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
-- * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-  */
+@@ -8,6 +8,7 @@
  
  #include <linux/skbuff.h>
  #include <linux/ctype.h>
@@ -11827,7 +11849,7 @@ index 408f062a4306..41916e178ab4 100644
  
  #include "core.h"
  #include "htc.h"
-@@ -27,6 +27,8 @@
+@@ -26,6 +27,8 @@
  #define ATH10K_WMI_BARRIER_TIMEOUT_HZ (3 * HZ)
  #define ATH10K_WMI_DFS_CONF_TIMEOUT_HZ (HZ / 6)
  
@@ -11836,7 +11858,7 @@ index 408f062a4306..41916e178ab4 100644
  /* MAIN WMI cmd track */
  static struct wmi_cmd_map wmi_cmd_map = {
  	.init_cmdid = WMI_INIT_CMDID,
-@@ -215,6 +217,7 @@ static struct wmi_cmd_map wmi_10x_cmd_map = {
+@@ -214,6 +217,7 @@ static struct wmi_cmd_map wmi_10x_cmd_map = {
  	.pdev_green_ap_ps_enable_cmdid = WMI_10X_PDEV_GREEN_AP_PS_ENABLE_CMDID,
  	.pdev_get_tpc_config_cmdid = WMI_10X_PDEV_GET_TPC_CONFIG_CMDID,
  	.pdev_set_base_macaddr_cmdid = WMI_10X_PDEV_SET_BASE_MACADDR_CMDID,
@@ -11844,7 +11866,7 @@ index 408f062a4306..41916e178ab4 100644
  	.vdev_create_cmdid = WMI_10X_VDEV_CREATE_CMDID,
  	.vdev_delete_cmdid = WMI_10X_VDEV_DELETE_CMDID,
  	.vdev_start_request_cmdid = WMI_10X_VDEV_START_REQUEST_CMDID,
-@@ -307,6 +310,7 @@ static struct wmi_cmd_map wmi_10x_cmd_map = {
+@@ -306,6 +310,7 @@ static struct wmi_cmd_map wmi_10x_cmd_map = {
  	.sta_keepalive_cmd = WMI_CMD_UNSUPPORTED,
  	.echo_cmdid = WMI_10X_ECHO_CMDID,
  	.pdev_utf_cmdid = WMI_10X_PDEV_UTF_CMDID,
@@ -11852,7 +11874,7 @@ index 408f062a4306..41916e178ab4 100644
  	.dbglog_cfg_cmdid = WMI_10X_DBGLOG_CFG_CMDID,
  	.pdev_qvit_cmdid = WMI_10X_PDEV_QVIT_CMDID,
  	.pdev_ftm_intg_cmdid = WMI_CMD_UNSUPPORTED,
-@@ -315,8 +319,8 @@ static struct wmi_cmd_map wmi_10x_cmd_map = {
+@@ -314,8 +319,8 @@ static struct wmi_cmd_map wmi_10x_cmd_map = {
  	.force_fw_hang_cmdid = WMI_CMD_UNSUPPORTED,
  	.gpio_config_cmdid = WMI_10X_GPIO_CONFIG_CMDID,
  	.gpio_output_cmdid = WMI_10X_GPIO_OUTPUT_CMDID,
@@ -11863,7 +11885,7 @@ index 408f062a4306..41916e178ab4 100644
  	.scan_update_request_cmdid = WMI_CMD_UNSUPPORTED,
  	.vdev_standby_response_cmdid = WMI_CMD_UNSUPPORTED,
  	.vdev_resume_response_cmdid = WMI_CMD_UNSUPPORTED,
-@@ -337,9 +341,9 @@ static struct wmi_cmd_map wmi_10x_cmd_map = {
+@@ -336,9 +341,9 @@ static struct wmi_cmd_map wmi_10x_cmd_map = {
  	.peer_smart_ant_set_train_info_cmdid = WMI_CMD_UNSUPPORTED,
  	.peer_smart_ant_set_node_config_ops_cmdid = WMI_CMD_UNSUPPORTED,
  	.pdev_set_antenna_switch_table_cmdid = WMI_CMD_UNSUPPORTED,
@@ -11876,7 +11898,7 @@ index 408f062a4306..41916e178ab4 100644
  	.pdev_ratepwr_chainmsk_table_cmdid = WMI_CMD_UNSUPPORTED,
  	.pdev_fips_cmdid = WMI_CMD_UNSUPPORTED,
  	.tt_set_conf_cmdid = WMI_CMD_UNSUPPORTED,
-@@ -358,7 +362,8 @@ static struct wmi_cmd_map wmi_10x_cmd_map = {
+@@ -357,7 +362,8 @@ static struct wmi_cmd_map wmi_10x_cmd_map = {
  	.vdev_filter_neighbor_rx_packets_cmdid = WMI_CMD_UNSUPPORTED,
  	.mu_cal_start_cmdid = WMI_CMD_UNSUPPORTED,
  	.set_cca_params_cmdid = WMI_CMD_UNSUPPORTED,
@@ -11886,7 +11908,7 @@ index 408f062a4306..41916e178ab4 100644
  	.pdev_get_tpc_table_cmdid = WMI_CMD_UNSUPPORTED,
  	.radar_found_cmdid = WMI_CMD_UNSUPPORTED,
  };
-@@ -646,6 +651,7 @@ static struct wmi_cmd_map wmi_10_4_cmd_map = {
+@@ -645,6 +651,7 @@ static struct wmi_cmd_map wmi_10_4_cmd_map = {
  	.sta_keepalive_cmd = WMI_CMD_UNSUPPORTED,
  	.echo_cmdid = WMI_10_4_ECHO_CMDID,
  	.pdev_utf_cmdid = WMI_10_4_PDEV_UTF_CMDID,
@@ -11894,7 +11916,7 @@ index 408f062a4306..41916e178ab4 100644
  	.dbglog_cfg_cmdid = WMI_10_4_DBGLOG_CFG_CMDID,
  	.pdev_qvit_cmdid = WMI_10_4_PDEV_QVIT_CMDID,
  	.pdev_ftm_intg_cmdid = WMI_CMD_UNSUPPORTED,
-@@ -892,7 +898,7 @@ static struct wmi_vdev_param_map wmi_10x_vdev_param_map = {
+@@ -891,7 +898,7 @@ static struct wmi_vdev_param_map wmi_10x_vdev_param_map = {
  	.tx_encap_type = WMI_VDEV_PARAM_UNSUPPORTED,
  	.ap_detect_out_of_sync_sleeping_sta_time_secs =
  		WMI_10X_VDEV_PARAM_AP_DETECT_OUT_OF_SYNC_SLEEPING_STA_TIME_SECS,
@@ -11903,7 +11925,7 @@ index 408f062a4306..41916e178ab4 100644
  	.cabq_maxdur = WMI_VDEV_PARAM_UNSUPPORTED,
  	.mfptest_set = WMI_VDEV_PARAM_UNSUPPORTED,
  	.rts_fixed_rate = WMI_VDEV_PARAM_UNSUPPORTED,
-@@ -1674,6 +1680,7 @@ static const struct wmi_peer_flags_map wmi_10x_peer_flags_map = {
+@@ -1673,6 +1680,7 @@ static const struct wmi_peer_flags_map wmi_10x_peer_flags_map = {
  	.spatial_mux = WMI_10X_PEER_SPATIAL_MUX,
  	.vht = WMI_10X_PEER_VHT,
  	.bw80 = WMI_10X_PEER_80MHZ,
@@ -11911,7 +11933,7 @@ index 408f062a4306..41916e178ab4 100644
  	.bw160 = WMI_10X_PEER_160MHZ,
  };
  
-@@ -1697,8 +1704,72 @@ static const struct wmi_peer_flags_map wmi_10_2_peer_flags_map = {
+@@ -1696,8 +1704,72 @@ static const struct wmi_peer_flags_map wmi_10_2_peer_flags_map = {
  	.bw160 = WMI_10_2_PEER_160MHZ,
  };
  
@@ -11986,7 +12008,7 @@ index 408f062a4306..41916e178ab4 100644
  {
  	u32 flags = 0;
  	struct ieee80211_channel *chan = NULL;
-@@ -1718,7 +1789,17 @@ void ath10k_wmi_put_wmi_channel(struct ath10k *ar, struct wmi_channel *ch,
+@@ -1717,7 +1789,17 @@ void ath10k_wmi_put_wmi_channel(struct ath10k *ar, struct wmi_channel *ch,
  	if (arg->chan_radar)
  		flags |= WMI_CHAN_FLAG_DFS;
  
@@ -12004,7 +12026,7 @@ index 408f062a4306..41916e178ab4 100644
  	ch->mhz = __cpu_to_le32(arg->freq);
  	ch->band_center_freq1 = __cpu_to_le32(arg->band_center_freq1);
  	if (arg->mode == MODE_11AC_VHT80_80) {
-@@ -1860,13 +1941,21 @@ int ath10k_wmi_cmd_send_nowait(struct ath10k *ar, struct sk_buff *skb,
+@@ -1859,13 +1941,21 @@ int ath10k_wmi_cmd_send_nowait(struct ath10k *ar, struct sk_buff *skb,
  
  static void ath10k_wmi_tx_beacon_nowait(struct ath10k_vif *arvif)
  {
@@ -12027,7 +12049,7 @@ index 408f062a4306..41916e178ab4 100644
  	spin_lock_bh(&ar->data_lock);
  
  	bcn = arvif->beacon;
-@@ -1886,12 +1975,14 @@ static void ath10k_wmi_tx_beacon_nowait(struct ath10k_vif *arvif)
+@@ -1885,12 +1975,14 @@ static void ath10k_wmi_tx_beacon_nowait(struct ath10k_vif *arvif)
  
  		dtim_zero = !!(cb->flags & ATH10K_SKB_F_DTIM_ZERO);
  		deliver_cab = !!(cb->flags & ATH10K_SKB_F_DELIVER_CAB);
@@ -12044,15 +12066,7 @@ index 408f062a4306..41916e178ab4 100644
  
  		spin_lock_bh(&ar->data_lock);
  
-@@ -1932,6 +2023,7 @@ static void ath10k_wmi_op_ep_tx_credits(struct ath10k *ar)
- int ath10k_wmi_cmd_send(struct ath10k *ar, struct sk_buff *skb, u32 cmd_id)
- {
- 	int ret = -EOPNOTSUPP;
-+	int loops = 0;
- 
- 	might_sleep();
- 
-@@ -1942,14 +2034,17 @@ int ath10k_wmi_cmd_send(struct ath10k *ar, struct sk_buff *skb, u32 cmd_id)
+@@ -1941,6 +2033,10 @@ int ath10k_wmi_cmd_send(struct ath10k *ar, struct sk_buff *skb, u32 cmd_id)
  		return ret;
  	}
  
@@ -12061,22 +12075,9 @@ index 408f062a4306..41916e178ab4 100644
 +	ar->last_wmi_cmd_idx++;
 +
  	wait_event_timeout(ar->wmi.tx_credits_wq, ({
--		if (ar->state == ATH10K_STATE_WEDGED) {
--			ret = -ESHUTDOWN;
--			ath10k_dbg(ar, ATH10K_DBG_WMI,
--				   "drop wmi command %d, hardware is wedged\n", cmd_id);
-+		if (loops++ == 0) {
-+			/* try to send pending beacons first. they take priority.  But, only
-+			 * the first time through this loop. --Ben
-+			 */
-+			ath10k_wmi_tx_beacons_nowait(ar);
- 		}
--		/* try to send pending beacons first. they take priority */
--		ath10k_wmi_tx_beacons_nowait(ar);
- 
- 		ret = ath10k_wmi_cmd_send_nowait(ar, skb, cmd_id);
- 
-@@ -1963,8 +2058,13 @@ int ath10k_wmi_cmd_send(struct ath10k *ar, struct sk_buff *skb, u32 cmd_id)
+ 		if (ar->state == ATH10K_STATE_WEDGED) {
+ 			ret = -ESHUTDOWN;
+@@ -1962,8 +2058,13 @@ int ath10k_wmi_cmd_send(struct ath10k *ar, struct sk_buff *skb, u32 cmd_id)
  		dev_kfree_skb_any(skb);
  
  	if (ret == -EAGAIN) {
@@ -12092,7 +12093,7 @@ index 408f062a4306..41916e178ab4 100644
  		ath10k_core_start_recovery(ar);
  	}
  
-@@ -2068,7 +2168,29 @@ static void ath10k_wmi_event_scan_started(struct ath10k *ar)
+@@ -2067,7 +2168,29 @@ static void ath10k_wmi_event_scan_started(struct ath10k *ar)
  	}
  }
  
@@ -12123,7 +12124,7 @@ index 408f062a4306..41916e178ab4 100644
  {
  	lockdep_assert_held(&ar->data_lock);
  
-@@ -2083,6 +2205,13 @@ static void ath10k_wmi_event_scan_start_failed(struct ath10k *ar)
+@@ -2082,6 +2205,13 @@ static void ath10k_wmi_event_scan_start_failed(struct ath10k *ar)
  	case ATH10K_SCAN_STARTING:
  		complete(&ar->scan.started);
  		__ath10k_scan_finish(ar);
@@ -12137,7 +12138,7 @@ index 408f062a4306..41916e178ab4 100644
  		break;
  	}
  }
-@@ -2171,6 +2300,8 @@ ath10k_wmi_event_scan_type_str(enum wmi_scan_event_type type,
+@@ -2170,6 +2300,8 @@ ath10k_wmi_event_scan_type_str(enum wmi_scan_event_type type,
  			return "completed [timedout]";
  		case WMI_SCAN_REASON_INTERNAL_FAILURE:
  			return "completed [internal err]";
@@ -12146,7 +12147,7 @@ index 408f062a4306..41916e178ab4 100644
  		case WMI_SCAN_REASON_MAX:
  			break;
  		}
-@@ -2259,8 +2390,11 @@ int ath10k_wmi_event_scan(struct ath10k *ar, struct sk_buff *skb)
+@@ -2258,8 +2390,11 @@ int ath10k_wmi_event_scan(struct ath10k *ar, struct sk_buff *skb)
  		ath10k_wmi_event_scan_foreign_chan(ar, freq);
  		break;
  	case WMI_SCAN_EVENT_START_FAILED:
@@ -12160,7 +12161,7 @@ index 408f062a4306..41916e178ab4 100644
  		break;
  	case WMI_SCAN_EVENT_DEQUEUED:
  	case WMI_SCAN_EVENT_PREEMPTED:
-@@ -2312,12 +2446,15 @@ static int ath10k_wmi_op_pull_mgmt_rx_ev(struct ath10k *ar, struct sk_buff *skb,
+@@ -2311,12 +2446,15 @@ static int ath10k_wmi_op_pull_mgmt_rx_ev(struct ath10k *ar, struct sk_buff *skb,
  					 struct wmi_mgmt_rx_ev_arg *arg)
  {
  	struct wmi_mgmt_rx_event_v1 *ev_v1;
@@ -12177,7 +12178,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	if (test_bit(ATH10K_FW_FEATURE_EXT_WMI_MGMT_RX,
  		     ar->running_fw->fw_file.fw_features)) {
-@@ -2340,6 +2477,27 @@ static int ath10k_wmi_op_pull_mgmt_rx_ev(struct ath10k *ar, struct sk_buff *skb,
+@@ -2339,6 +2477,27 @@ static int ath10k_wmi_op_pull_mgmt_rx_ev(struct ath10k *ar, struct sk_buff *skb,
  	arg->snr = ev_hdr->snr;
  	arg->phy_mode = ev_hdr->phy_mode;
  	arg->rate = ev_hdr->rate;
@@ -12205,7 +12206,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	msdu_len = __le32_to_cpu(arg->buf_len);
  	if (skb->len < msdu_len)
-@@ -2369,6 +2527,7 @@ static int ath10k_wmi_10_4_op_pull_mgmt_rx_ev(struct ath10k *ar,
+@@ -2368,6 +2527,7 @@ static int ath10k_wmi_10_4_op_pull_mgmt_rx_ev(struct ath10k *ar,
  	u32 msdu_len;
  	struct wmi_mgmt_rx_ext_info *ext_info;
  	u32 len;
@@ -12213,7 +12214,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	ev = (struct wmi_10_4_mgmt_rx_event *)skb->data;
  	ev_hdr = &ev->hdr;
-@@ -2384,6 +2543,8 @@ static int ath10k_wmi_10_4_op_pull_mgmt_rx_ev(struct ath10k *ar,
+@@ -2383,6 +2543,8 @@ static int ath10k_wmi_10_4_op_pull_mgmt_rx_ev(struct ath10k *ar,
  	arg->snr = ev_hdr->snr;
  	arg->phy_mode = ev_hdr->phy_mode;
  	arg->rate = ev_hdr->rate;
@@ -12222,7 +12223,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	msdu_len = __le32_to_cpu(arg->buf_len);
  	if (skb->len < msdu_len)
-@@ -2405,6 +2566,12 @@ static int ath10k_wmi_10_4_op_pull_mgmt_rx_ev(struct ath10k *ar,
+@@ -2404,6 +2566,12 @@ static int ath10k_wmi_10_4_op_pull_mgmt_rx_ev(struct ath10k *ar,
  static bool ath10k_wmi_rx_is_decrypted(struct ath10k *ar,
  				       struct ieee80211_hdr *hdr)
  {
@@ -12235,7 +12236,7 @@ index 408f062a4306..41916e178ab4 100644
  	if (!ieee80211_has_protected(hdr->frame_control))
  		return false;
  
-@@ -2418,9 +2585,9 @@ static bool ath10k_wmi_rx_is_decrypted(struct ath10k *ar,
+@@ -2417,9 +2585,9 @@ static bool ath10k_wmi_rx_is_decrypted(struct ath10k *ar,
  	/* qca99x0 based FW delivers broadcast or multicast management frames
  	 * (ex: group privacy action frames in mesh) as encrypted payload.
  	 */
@@ -12248,7 +12249,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	return true;
  }
-@@ -2453,9 +2620,24 @@ wmi_process_mgmt_tx_comp(struct ath10k *ar, struct mgmt_tx_compl_params *param)
+@@ -2452,9 +2620,24 @@ wmi_process_mgmt_tx_comp(struct ath10k *ar, struct mgmt_tx_compl_params *param)
  	if (param->status) {
  		info->flags &= ~IEEE80211_TX_STAT_ACK;
  	} else {
@@ -12275,7 +12276,7 @@ index 408f062a4306..41916e178ab4 100644
  		info->status.flags |= IEEE80211_TX_STATUS_ACK_SIGNAL_VALID;
  	}
  
-@@ -2538,6 +2720,7 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
+@@ -2537,6 +2720,7 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
  	u32 rate;
  	u16 fc;
  	int ret, i;
@@ -12283,7 +12284,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	ret = ath10k_wmi_pull_mgmt_rx(ar, skb, &arg);
  	if (ret) {
-@@ -2594,8 +2777,17 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
+@@ -2593,8 +2777,17 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
  
  	sband = &ar->mac.sbands[status->band];
  
@@ -12302,7 +12303,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	BUILD_BUG_ON(ARRAY_SIZE(status->chain_signal) != ARRAY_SIZE(arg.rssi));
  
-@@ -2605,7 +2797,7 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
+@@ -2604,7 +2797,7 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
  		ath10k_dbg(ar, ATH10K_DBG_MGMT, "mgmt rssi[%d]:%d\n", i, arg.rssi[i]);
  
  		if (rssi != ATH10K_INVALID_RSSI && rssi != 0) {
@@ -12311,7 +12312,7 @@ index 408f062a4306..41916e178ab4 100644
  			status->chains |= BIT(i);
  		}
  	}
-@@ -2644,13 +2836,16 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
+@@ -2643,13 +2836,16 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
  		status->boottime_ns = ktime_get_boottime_ns();
  
  	ath10k_dbg(ar, ATH10K_DBG_MGMT,
@@ -12331,7 +12332,7 @@ index 408f062a4306..41916e178ab4 100644
  		   status->rate_idx);
  
  	ieee80211_rx_ni(ar->hw, skb);
-@@ -2866,11 +3061,167 @@ void ath10k_wmi_event_echo(struct ath10k *ar, struct sk_buff *skb)
+@@ -2865,11 +3061,167 @@ void ath10k_wmi_event_echo(struct ath10k *ar, struct sk_buff *skb)
  
  int ath10k_wmi_event_debug_mesg(struct ath10k *ar, struct sk_buff *skb)
  {
@@ -12499,7 +12500,7 @@ index 408f062a4306..41916e178ab4 100644
  	return 0;
  }
  
-@@ -3000,6 +3351,14 @@ ath10k_wmi_10_4_pull_peer_stats(const struct wmi_10_4_peer_stats *src,
+@@ -2999,6 +3351,14 @@ ath10k_wmi_10_4_pull_peer_stats(const struct wmi_10_4_peer_stats *src,
  	dst->peer_rssi = __le32_to_cpu(src->peer_rssi);
  	dst->peer_tx_rate = __le32_to_cpu(src->peer_tx_rate);
  	dst->peer_rx_rate = __le32_to_cpu(src->peer_rx_rate);
@@ -12514,7 +12515,7 @@ index 408f062a4306..41916e178ab4 100644
  }
  
  static void
-@@ -3083,13 +3442,14 @@ static int ath10k_wmi_10x_op_pull_fw_stats(struct ath10k *ar,
+@@ -3082,13 +3442,14 @@ static int ath10k_wmi_10x_op_pull_fw_stats(struct ath10k *ar,
  					   struct ath10k_fw_stats *stats)
  {
  	const struct wmi_stats_event *ev = (void *)skb->data;
@@ -12530,7 +12531,7 @@ index 408f062a4306..41916e178ab4 100644
  	num_peer_stats = __le32_to_cpu(ev->num_peer_stats);
  
  	for (i = 0; i < num_pdev_stats; i++) {
-@@ -3112,14 +3472,47 @@ static int ath10k_wmi_10x_op_pull_fw_stats(struct ath10k *ar,
+@@ -3111,14 +3472,47 @@ static int ath10k_wmi_10x_op_pull_fw_stats(struct ath10k *ar,
  		list_add_tail(&dst->list, &stats->pdevs);
  	}
  
@@ -12580,7 +12581,7 @@ index 408f062a4306..41916e178ab4 100644
  			return -EPROTO;
  
  		dst = kzalloc(sizeof(*dst), GFP_ATOMIC);
-@@ -3130,6 +3523,11 @@ static int ath10k_wmi_10x_op_pull_fw_stats(struct ath10k *ar,
+@@ -3129,6 +3523,11 @@ static int ath10k_wmi_10x_op_pull_fw_stats(struct ath10k *ar,
  
  		dst->peer_rx_rate = __le32_to_cpu(src->peer_rx_rate);
  
@@ -12592,7 +12593,7 @@ index 408f062a4306..41916e178ab4 100644
  		list_add_tail(&dst->list, &stats->peers);
  	}
  
-@@ -3168,6 +3566,9 @@ static int ath10k_wmi_10_2_op_pull_fw_stats(struct ath10k *ar,
+@@ -3167,6 +3566,9 @@ static int ath10k_wmi_10_2_op_pull_fw_stats(struct ath10k *ar,
  		ath10k_wmi_pull_pdev_stats_base(&src->base, dst);
  		ath10k_wmi_pull_pdev_stats_tx(&src->tx, dst);
  		ath10k_wmi_pull_pdev_stats_rx(&src->rx, dst);
@@ -12602,7 +12603,7 @@ index 408f062a4306..41916e178ab4 100644
  		ath10k_wmi_pull_pdev_stats_extra(&src->extra, dst);
  		/* FIXME: expose 10.2 specific values */
  
-@@ -3337,7 +3738,11 @@ static int ath10k_wmi_10_4_op_pull_fw_stats(struct ath10k *ar,
+@@ -3336,7 +3738,11 @@ static int ath10k_wmi_10_4_op_pull_fw_stats(struct ath10k *ar,
  		ath10k_wmi_pull_pdev_stats_base(&src->base, dst);
  		ath10k_wmi_10_4_pull_pdev_stats_tx(&src->tx, dst);
  		ath10k_wmi_pull_pdev_stats_rx(&src->rx, dst);
@@ -12614,7 +12615,7 @@ index 408f062a4306..41916e178ab4 100644
  		ath10k_wmi_pull_pdev_stats_extra(&src->extra, dst);
  
  		list_add_tail(&dst->list, &stats->pdevs);
-@@ -3514,6 +3919,9 @@ ath10k_wmi_op_pull_peer_kick_ev(struct ath10k *ar, struct sk_buff *skb,
+@@ -3513,6 +3919,9 @@ ath10k_wmi_op_pull_peer_kick_ev(struct ath10k *ar, struct sk_buff *skb,
  	skb_pull(skb, sizeof(*ev));
  	arg->mac_addr = ev->peer_macaddr.addr;
  
@@ -12624,7 +12625,7 @@ index 408f062a4306..41916e178ab4 100644
  	return 0;
  }
  
-@@ -3919,7 +4327,8 @@ void ath10k_wmi_event_host_swba(struct ath10k *ar, struct sk_buff *skb)
+@@ -3918,7 +4327,8 @@ void ath10k_wmi_event_host_swba(struct ath10k *ar, struct sk_buff *skb)
  
  		bcn = ieee80211_beacon_get(ar->hw, arvif->vif, 0);
  		if (!bcn) {
@@ -12634,7 +12635,7 @@ index 408f062a4306..41916e178ab4 100644
  			continue;
  		}
  
-@@ -3987,6 +4396,8 @@ void ath10k_wmi_event_tbttoffset_update(struct ath10k *ar, struct sk_buff *skb)
+@@ -3986,6 +4396,8 @@ void ath10k_wmi_event_tbttoffset_update(struct ath10k *ar, struct sk_buff *skb)
  	ath10k_dbg(ar, ATH10K_DBG_WMI, "WMI_TBTTOFFSET_UPDATE_EVENTID\n");
  }
  
@@ -12643,7 +12644,7 @@ index 408f062a4306..41916e178ab4 100644
  static void ath10k_radar_detected(struct ath10k *ar)
  {
  	ath10k_dbg(ar, ATH10K_DBG_REGULATORY, "dfs radar detected\n");
-@@ -4062,6 +4473,10 @@ static void ath10k_dfs_radar_report(struct ath10k *ar,
+@@ -4061,6 +4473,10 @@ static void ath10k_dfs_radar_report(struct ath10k *ar,
  	u8 rssi, width;
  	struct ath10k_radar_found_info *radar_info;
  
@@ -12654,7 +12655,7 @@ index 408f062a4306..41916e178ab4 100644
  	reg0 = __le32_to_cpu(rr->reg0);
  	reg1 = __le32_to_cpu(rr->reg1);
  
-@@ -4079,9 +4494,9 @@ static void ath10k_dfs_radar_report(struct ath10k *ar,
+@@ -4078,9 +4494,9 @@ static void ath10k_dfs_radar_report(struct ath10k *ar,
  		   MS(reg1, RADAR_REPORT_REG1_PULSE_AGC_MB_GAIN),
  		   MS(reg1, RADAR_REPORT_REG1_PULSE_SUBCHAN_MASK));
  	ath10k_dbg(ar, ATH10K_DBG_REGULATORY,
@@ -12666,7 +12667,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	if (!ar->dfs_detector)
  		return;
-@@ -4120,8 +4535,8 @@ static void ath10k_dfs_radar_report(struct ath10k *ar,
+@@ -4119,8 +4535,8 @@ static void ath10k_dfs_radar_report(struct ath10k *ar,
  	pe.rssi = rssi;
  	pe.chirp = (MS(reg0, RADAR_REPORT_REG0_PULSE_IS_CHIRP) != 0);
  	ath10k_dbg(ar, ATH10K_DBG_REGULATORY,
@@ -12677,7 +12678,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	ATH10K_DFS_STAT_INC(ar, pulses_detected);
  
-@@ -4164,6 +4579,17 @@ static void ath10k_dfs_radar_report(struct ath10k *ar,
+@@ -4163,6 +4579,17 @@ static void ath10k_dfs_radar_report(struct ath10k *ar,
  	}
  
  radar_detected:
@@ -12695,7 +12696,7 @@ index 408f062a4306..41916e178ab4 100644
  	ath10k_radar_detected(ar);
  }
  
-@@ -4603,7 +5029,7 @@ void ath10k_wmi_event_profile_match(struct ath10k *ar, struct sk_buff *skb)
+@@ -4602,7 +5029,7 @@ void ath10k_wmi_event_profile_match(struct ath10k *ar, struct sk_buff *skb)
  
  void ath10k_wmi_event_debug_print(struct ath10k *ar, struct sk_buff *skb)
  {
@@ -12704,7 +12705,7 @@ index 408f062a4306..41916e178ab4 100644
  	int i;
  
  	for (i = 0; i < sizeof(buf) - 1; i++) {
-@@ -4631,7 +5057,7 @@ void ath10k_wmi_event_debug_print(struct ath10k *ar, struct sk_buff *skb)
+@@ -4630,7 +5057,7 @@ void ath10k_wmi_event_debug_print(struct ath10k *ar, struct sk_buff *skb)
  	/* the last byte is always reserved for the null character */
  	buf[i] = '\0';
  
@@ -12713,7 +12714,7 @@ index 408f062a4306..41916e178ab4 100644
  }
  
  void ath10k_wmi_event_pdev_qvit(struct ath10k *ar, struct sk_buff *skb)
-@@ -5580,6 +6006,26 @@ static void ath10k_wmi_event_service_ready_work(struct work_struct *work)
+@@ -5579,6 +6006,26 @@ static void ath10k_wmi_event_service_ready_work(struct work_struct *work)
  	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi sys_cap_info 0x%x\n",
  		   ar->sys_cap_info);
  
@@ -12740,7 +12741,7 @@ index 408f062a4306..41916e178ab4 100644
  	if (ar->num_rf_chains > ar->max_spatial_stream) {
  		ath10k_warn(ar, "hardware advertises support for more spatial streams than it should (%d > %d)\n",
  			    ar->num_rf_chains, ar->max_spatial_stream);
-@@ -5601,6 +6047,20 @@ static void ath10k_wmi_event_service_ready_work(struct work_struct *work)
+@@ -5600,6 +6047,20 @@ static void ath10k_wmi_event_service_ready_work(struct work_struct *work)
  			 ar->fw_version_build);
  	}
  
@@ -12761,7 +12762,7 @@ index 408f062a4306..41916e178ab4 100644
  	num_mem_reqs = __le32_to_cpu(arg.num_mem_reqs);
  	if (num_mem_reqs > WMI_MAX_MEM_REQS) {
  		ath10k_warn(ar, "requested memory chunks number (%d) exceeds the limit\n",
-@@ -5609,18 +6069,28 @@ static void ath10k_wmi_event_service_ready_work(struct work_struct *work)
+@@ -5608,18 +6069,28 @@ static void ath10k_wmi_event_service_ready_work(struct work_struct *work)
  	}
  
  	if (test_bit(WMI_SERVICE_PEER_CACHING, ar->wmi.svc_map)) {
@@ -12801,7 +12802,7 @@ index 408f062a4306..41916e178ab4 100644
  	}
  
  	/* TODO: Adjust max peer count for cases like WMI_SERVICE_RATECTRL_CACHE
-@@ -5661,6 +6131,15 @@ static void ath10k_wmi_event_service_ready_work(struct work_struct *work)
+@@ -5660,6 +6131,15 @@ static void ath10k_wmi_event_service_ready_work(struct work_struct *work)
  			num_units = ar->max_num_vdevs + 1;
  		}
  
@@ -12817,7 +12818,7 @@ index 408f062a4306..41916e178ab4 100644
  		ath10k_dbg(ar, ATH10K_DBG_WMI,
  			   "wmi mem_req_id %d num_units %d num_unit_info %d unit size %d actual units %d\n",
  			   req_id,
-@@ -5798,6 +6277,7 @@ static int ath10k_wmi_event_temperature(struct ath10k *ar, struct sk_buff *skb)
+@@ -5797,6 +6277,7 @@ static int ath10k_wmi_event_temperature(struct ath10k *ar, struct sk_buff *skb)
  	const struct wmi_pdev_temperature_event *ev;
  
  	ev = (struct wmi_pdev_temperature_event *)skb->data;
@@ -12825,7 +12826,7 @@ index 408f062a4306..41916e178ab4 100644
  	if (WARN_ON(skb->len < sizeof(*ev)))
  		return -EPROTO;
  
-@@ -5805,6 +6285,132 @@ static int ath10k_wmi_event_temperature(struct ath10k *ar, struct sk_buff *skb)
+@@ -5804,6 +6285,132 @@ static int ath10k_wmi_event_temperature(struct ath10k *ar, struct sk_buff *skb)
  	return 0;
  }
  
@@ -12958,7 +12959,7 @@ index 408f062a4306..41916e178ab4 100644
  static int ath10k_wmi_event_pdev_bss_chan_info(struct ath10k *ar,
  					       struct sk_buff *skb)
  {
-@@ -5868,7 +6474,11 @@ static inline void ath10k_wmi_queue_set_coverage_class_work(struct ath10k *ar)
+@@ -5867,7 +6474,11 @@ static inline void ath10k_wmi_queue_set_coverage_class_work(struct ath10k *ar)
  		 * coverage class has a non-zero value.
  		 */
  		if (ar->fw_coverage.coverage_class)
@@ -12971,7 +12972,7 @@ index 408f062a4306..41916e178ab4 100644
  
  		spin_unlock_bh(&ar->data_lock);
  	}
-@@ -5993,7 +6603,7 @@ static void ath10k_wmi_op_rx(struct ath10k *ar, struct sk_buff *skb)
+@@ -5992,7 +6603,7 @@ static void ath10k_wmi_op_rx(struct ath10k *ar, struct sk_buff *skb)
  		ath10k_wmi_event_service_available(ar, skb);
  		break;
  	default:
@@ -12980,7 +12981,7 @@ index 408f062a4306..41916e178ab4 100644
  		break;
  	}
  
-@@ -6123,8 +6733,20 @@ static void ath10k_wmi_10_1_op_rx(struct ath10k *ar, struct sk_buff *skb)
+@@ -6122,8 +6733,20 @@ static void ath10k_wmi_10_1_op_rx(struct ath10k *ar, struct sk_buff *skb)
  	case WMI_10X_PDEV_UTF_EVENTID:
  		/* ignore utf events */
  		break;
@@ -13002,7 +13003,7 @@ index 408f062a4306..41916e178ab4 100644
  		break;
  	}
  
-@@ -6273,7 +6895,7 @@ static void ath10k_wmi_10_2_op_rx(struct ath10k *ar, struct sk_buff *skb)
+@@ -6272,7 +6895,7 @@ static void ath10k_wmi_10_2_op_rx(struct ath10k *ar, struct sk_buff *skb)
  		ath10k_wmi_event_peer_sta_ps_state_chg(ar, skb);
  		break;
  	default:
@@ -13011,7 +13012,7 @@ index 408f062a4306..41916e178ab4 100644
  		break;
  	}
  
-@@ -6383,6 +7005,12 @@ static void ath10k_wmi_10_4_op_rx(struct ath10k *ar, struct sk_buff *skb)
+@@ -6382,6 +7005,12 @@ static void ath10k_wmi_10_4_op_rx(struct ath10k *ar, struct sk_buff *skb)
  	case WMI_10_4_TDLS_PEER_EVENTID:
  		ath10k_wmi_handle_tdls_peer_event(ar, skb);
  		break;
@@ -13024,7 +13025,7 @@ index 408f062a4306..41916e178ab4 100644
  	case WMI_10_4_PDEV_TPC_TABLE_EVENTID:
  		ath10k_wmi_event_tpc_final_table(ar, skb);
  		break;
-@@ -6392,8 +7020,11 @@ static void ath10k_wmi_10_4_op_rx(struct ath10k *ar, struct sk_buff *skb)
+@@ -6391,8 +7020,11 @@ static void ath10k_wmi_10_4_op_rx(struct ath10k *ar, struct sk_buff *skb)
  	case WMI_10_4_PEER_STA_PS_STATECHG_EVENTID:
  		ath10k_wmi_event_peer_sta_ps_state_chg(ar, skb);
  		break;
@@ -13037,7 +13038,7 @@ index 408f062a4306..41916e178ab4 100644
  		break;
  	}
  
-@@ -6460,43 +7091,148 @@ ath10k_wmi_op_gen_pdev_set_base_macaddr(struct ath10k *ar,
+@@ -6459,46 +7091,151 @@ ath10k_wmi_op_gen_pdev_set_base_macaddr(struct ath10k *ar,
  }
  
  static struct sk_buff *
@@ -13088,6 +13089,9 @@ index 408f062a4306..41916e178ab4 100644
 +		return ENOMEM;
  
 -	cmd = (struct wmi_pdev_set_regdomain_cmd_10x *)skb->data;
+-	cmd->reg_domain = __cpu_to_le32(rd);
+-	cmd->reg_domain_2G = __cpu_to_le32(rd2g);
+-	cmd->reg_domain_5G = __cpu_to_le32(rd5g);
 +	cmd = (struct qca9880_pdev_ratepwr_table_cmd *)skb->data;
 +
 +	cmd->op = __cpu_to_le32(RATEPWR_TABLE_OPS_GET);
@@ -13202,10 +13206,13 @@ index 408f062a4306..41916e178ab4 100644
 +		return ERR_PTR(-ENOMEM);
 +
 +	cmd = (struct wmi_pdev_set_regdomain_cmd_10x *)skb->data;
- 	cmd->reg_domain = __cpu_to_le32(rd);
- 	cmd->reg_domain_2G = __cpu_to_le32(rd2g);
- 	cmd->reg_domain_5G = __cpu_to_le32(rd5g);
-@@ -6563,6 +7299,31 @@ ath10k_wmi_op_gen_pdev_set_param(struct ath10k *ar, u32 id, u32 value)
++	cmd->reg_domain = __cpu_to_le32(rd);
++	cmd->reg_domain_2G = __cpu_to_le32(rd2g);
++	cmd->reg_domain_5G = __cpu_to_le32(rd5g);
+ 	cmd->conformance_test_limit_2G = __cpu_to_le32(ctl2g);
+ 	cmd->conformance_test_limit_5G = __cpu_to_le32(ctl5g);
+ 	cmd->dfs_domain = __cpu_to_le32(dfs_reg);
+@@ -6562,6 +7299,31 @@ ath10k_wmi_op_gen_pdev_set_param(struct ath10k *ar, u32 id, u32 value)
  	return skb;
  }
  
@@ -13237,7 +13244,7 @@ index 408f062a4306..41916e178ab4 100644
  void ath10k_wmi_put_host_mem_chunks(struct ath10k *ar,
  				    struct wmi_host_mem_chunks *chunks)
  {
-@@ -6592,8 +7353,8 @@ static struct sk_buff *ath10k_wmi_op_gen_init(struct ath10k *ar)
+@@ -6591,8 +7353,8 @@ static struct sk_buff *ath10k_wmi_op_gen_init(struct ath10k *ar)
  	struct wmi_resource_config config = {};
  	u32 val;
  
@@ -13248,7 +13255,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.num_offload_peers = __cpu_to_le32(TARGET_NUM_OFFLOAD_PEERS);
  
  	config.num_offload_reorder_bufs =
-@@ -6601,7 +7362,7 @@ static struct sk_buff *ath10k_wmi_op_gen_init(struct ath10k *ar)
+@@ -6600,7 +7362,7 @@ static struct sk_buff *ath10k_wmi_op_gen_init(struct ath10k *ar)
  
  	config.num_peer_keys = __cpu_to_le32(TARGET_NUM_PEER_KEYS);
  	config.num_tids = __cpu_to_le32(TARGET_NUM_TIDS);
@@ -13257,7 +13264,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.tx_chain_mask = __cpu_to_le32(TARGET_TX_CHAIN_MASK);
  	config.rx_chain_mask = __cpu_to_le32(TARGET_RX_CHAIN_MASK);
  	config.rx_timeout_pri_vo = __cpu_to_le32(TARGET_RX_TIMEOUT_LO_PRI);
-@@ -6612,8 +7373,7 @@ static struct sk_buff *ath10k_wmi_op_gen_init(struct ath10k *ar)
+@@ -6611,8 +7373,7 @@ static struct sk_buff *ath10k_wmi_op_gen_init(struct ath10k *ar)
  	config.scan_max_pending_reqs =
  		__cpu_to_le32(TARGET_SCAN_MAX_PENDING_REQS);
  
@@ -13267,7 +13274,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	config.roam_offload_max_vdev =
  		__cpu_to_le32(TARGET_ROAM_OFFLOAD_MAX_VDEV);
-@@ -6629,6 +7389,8 @@ static struct sk_buff *ath10k_wmi_op_gen_init(struct ath10k *ar)
+@@ -6628,6 +7389,8 @@ static struct sk_buff *ath10k_wmi_op_gen_init(struct ath10k *ar)
  	config.tx_dbg_log_size = __cpu_to_le32(TARGET_TX_DBG_LOG_SIZE);
  	config.num_wds_entries = __cpu_to_le32(TARGET_NUM_WDS_ENTRIES);
  	config.dma_burst_size = __cpu_to_le32(TARGET_DMA_BURST_SIZE);
@@ -13276,7 +13283,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.mac_aggr_delim = __cpu_to_le32(TARGET_MAC_AGGR_DELIM);
  
  	val = TARGET_RX_SKIP_DEFRAG_TIMEOUT_DUP_DETECTION_CHECK;
-@@ -6663,29 +7425,98 @@ static struct sk_buff *ath10k_wmi_10_1_op_gen_init(struct ath10k *ar)
+@@ -6662,29 +7425,98 @@ static struct sk_buff *ath10k_wmi_10_1_op_gen_init(struct ath10k *ar)
  	struct wmi_resource_config_10x config = {};
  	u32 val;
  
@@ -13390,7 +13397,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	config.num_mcast_groups = __cpu_to_le32(TARGET_10X_NUM_MCAST_GROUPS);
  	config.num_mcast_table_elems =
-@@ -6695,6 +7526,8 @@ static struct sk_buff *ath10k_wmi_10_1_op_gen_init(struct ath10k *ar)
+@@ -6694,6 +7526,8 @@ static struct sk_buff *ath10k_wmi_10_1_op_gen_init(struct ath10k *ar)
  	config.tx_dbg_log_size = __cpu_to_le32(TARGET_10X_TX_DBG_LOG_SIZE);
  	config.num_wds_entries = __cpu_to_le32(TARGET_10X_NUM_WDS_ENTRIES);
  	config.dma_burst_size = __cpu_to_le32(TARGET_10X_DMA_BURST_SIZE);
@@ -13399,7 +13406,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.mac_aggr_delim = __cpu_to_le32(TARGET_10X_MAC_AGGR_DELIM);
  
  	val = TARGET_10X_RX_SKIP_DEFRAG_TIMEOUT_DUP_DETECTION_CHECK;
-@@ -6702,7 +7535,6 @@ static struct sk_buff *ath10k_wmi_10_1_op_gen_init(struct ath10k *ar)
+@@ -6701,7 +7535,6 @@ static struct sk_buff *ath10k_wmi_10_1_op_gen_init(struct ath10k *ar)
  
  	config.vow_config = __cpu_to_le32(TARGET_10X_VOW_CONFIG);
  
@@ -13407,7 +13414,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.max_frag_entries = __cpu_to_le32(TARGET_10X_MAX_FRAG_ENTRIES);
  
  	buf = ath10k_wmi_alloc_skb(ar, struct_size(cmd, mem_chunks.items,
-@@ -6726,38 +7558,81 @@ static struct sk_buff *ath10k_wmi_10_2_op_gen_init(struct ath10k *ar)
+@@ -6725,38 +7558,81 @@ static struct sk_buff *ath10k_wmi_10_2_op_gen_init(struct ath10k *ar)
  	struct wmi_resource_config_10x config = {};
  	u32 val, features;
  
@@ -13503,7 +13510,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.num_mcast_groups = __cpu_to_le32(TARGET_10X_NUM_MCAST_GROUPS);
  	config.num_mcast_table_elems =
  		__cpu_to_le32(TARGET_10X_NUM_MCAST_TABLE_ELEMS);
-@@ -6766,6 +7641,8 @@ static struct sk_buff *ath10k_wmi_10_2_op_gen_init(struct ath10k *ar)
+@@ -6765,6 +7641,8 @@ static struct sk_buff *ath10k_wmi_10_2_op_gen_init(struct ath10k *ar)
  	config.tx_dbg_log_size = __cpu_to_le32(TARGET_10X_TX_DBG_LOG_SIZE);
  	config.num_wds_entries = __cpu_to_le32(TARGET_10X_NUM_WDS_ENTRIES);
  	config.dma_burst_size = __cpu_to_le32(TARGET_10_2_DMA_BURST_SIZE);
@@ -13512,7 +13519,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.mac_aggr_delim = __cpu_to_le32(TARGET_10X_MAC_AGGR_DELIM);
  
  	val = TARGET_10X_RX_SKIP_DEFRAG_TIMEOUT_DUP_DETECTION_CHECK;
-@@ -6773,7 +7650,6 @@ static struct sk_buff *ath10k_wmi_10_2_op_gen_init(struct ath10k *ar)
+@@ -6772,7 +7650,6 @@ static struct sk_buff *ath10k_wmi_10_2_op_gen_init(struct ath10k *ar)
  
  	config.vow_config = __cpu_to_le32(TARGET_10X_VOW_CONFIG);
  
@@ -13520,7 +13527,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.max_frag_entries = __cpu_to_le32(TARGET_10X_MAX_FRAG_ENTRIES);
  
  	buf = ath10k_wmi_alloc_skb(ar, struct_size(cmd, mem_chunks.items,
-@@ -6810,32 +7686,103 @@ static struct sk_buff *ath10k_wmi_10_4_op_gen_init(struct ath10k *ar)
+@@ -6809,32 +7686,103 @@ static struct sk_buff *ath10k_wmi_10_4_op_gen_init(struct ath10k *ar)
  	struct sk_buff *buf;
  	struct wmi_resource_config_10_4 config = {};
  
@@ -13635,7 +13642,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.num_mcast_groups = __cpu_to_le32(TARGET_10_4_NUM_MCAST_GROUPS);
  	config.num_mcast_table_elems =
  			__cpu_to_le32(TARGET_10_4_NUM_MCAST_TABLE_ELEMS);
-@@ -6844,6 +7791,8 @@ static struct sk_buff *ath10k_wmi_10_4_op_gen_init(struct ath10k *ar)
+@@ -6843,6 +7791,8 @@ static struct sk_buff *ath10k_wmi_10_4_op_gen_init(struct ath10k *ar)
  	config.tx_dbg_log_size  = __cpu_to_le32(TARGET_10_4_TX_DBG_LOG_SIZE);
  	config.num_wds_entries  = __cpu_to_le32(TARGET_10_4_NUM_WDS_ENTRIES);
  	config.dma_burst_size   = __cpu_to_le32(TARGET_10_4_DMA_BURST_SIZE);
@@ -13644,7 +13651,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.mac_aggr_delim   = __cpu_to_le32(TARGET_10_4_MAC_AGGR_DELIM);
  
  	config.rx_skip_defrag_timeout_dup_detection_check =
-@@ -6852,7 +7801,6 @@ static struct sk_buff *ath10k_wmi_10_4_op_gen_init(struct ath10k *ar)
+@@ -6851,7 +7801,6 @@ static struct sk_buff *ath10k_wmi_10_4_op_gen_init(struct ath10k *ar)
  	config.vow_config = __cpu_to_le32(TARGET_10_4_VOW_CONFIG);
  	config.gtk_offload_max_vdev =
  			__cpu_to_le32(TARGET_10_4_GTK_OFFLOAD_MAX_VDEV);
@@ -13652,7 +13659,7 @@ index 408f062a4306..41916e178ab4 100644
  	config.max_frag_entries = __cpu_to_le32(TARGET_10_4_11AC_TX_MAX_FRAGS);
  	config.max_peer_ext_stats =
  			__cpu_to_le32(TARGET_10_4_MAX_PEER_EXT_STATS);
-@@ -6868,7 +7816,6 @@ static struct sk_buff *ath10k_wmi_10_4_op_gen_init(struct ath10k *ar)
+@@ -6867,7 +7816,6 @@ static struct sk_buff *ath10k_wmi_10_4_op_gen_init(struct ath10k *ar)
  			__cpu_to_le32(TARGET_10_4_THERMAL_THROTTLING_CONFIG);
  	config.atf_config = __cpu_to_le32(TARGET_10_4_ATF_CONFIG);
  	config.iphdr_pad_config = __cpu_to_le32(TARGET_10_4_IPHDR_PAD_CONFIG);
@@ -13660,7 +13667,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	buf = ath10k_wmi_alloc_skb(ar, struct_size(cmd, mem_chunks.items,
  						   ar->wmi.num_mem_chunks));
-@@ -7223,17 +8170,56 @@ ath10k_wmi_op_gen_vdev_start(struct ath10k *ar,
+@@ -7222,17 +8170,56 @@ ath10k_wmi_op_gen_vdev_start(struct ath10k *ar,
  		memcpy(cmd->ssid.ssid, arg->ssid, arg->ssid_len);
  	}
  
@@ -13720,7 +13727,7 @@ index 408f062a4306..41916e178ab4 100644
  static struct sk_buff *
  ath10k_wmi_op_gen_vdev_stop(struct ath10k *ar, u32 vdev_id)
  {
-@@ -7351,8 +8337,9 @@ ath10k_wmi_op_gen_vdev_install_key(struct ath10k *ar,
+@@ -7350,8 +8337,9 @@ ath10k_wmi_op_gen_vdev_install_key(struct ath10k *ar,
  		memcpy(cmd->key_data, arg->key_data, arg->key_len);
  
  	ath10k_dbg(ar, ATH10K_DBG_WMI,
@@ -13732,7 +13739,7 @@ index 408f062a4306..41916e178ab4 100644
  	return skb;
  }
  
-@@ -7448,6 +8435,12 @@ ath10k_wmi_op_gen_peer_delete(struct ath10k *ar, u32 vdev_id,
+@@ -7447,6 +8435,12 @@ ath10k_wmi_op_gen_peer_delete(struct ath10k *ar, u32 vdev_id,
  	cmd->vdev_id = __cpu_to_le32(vdev_id);
  	ether_addr_copy(cmd->peer_macaddr.addr, peer_addr);
  
@@ -13745,7 +13752,7 @@ index 408f062a4306..41916e178ab4 100644
  	ath10k_dbg(ar, ATH10K_DBG_WMI,
  		   "wmi peer delete vdev_id %d peer_addr %pM\n",
  		   vdev_id, peer_addr);
-@@ -7635,7 +8628,14 @@ ath10k_wmi_op_gen_scan_chan_list(struct ath10k *ar,
+@@ -7634,7 +8628,14 @@ ath10k_wmi_op_gen_scan_chan_list(struct ath10k *ar,
  		ch = &arg->channels[i];
  		ci = &cmd->chan_info[i];
  
@@ -13761,7 +13768,7 @@ index 408f062a4306..41916e178ab4 100644
  	}
  
  	return skb;
-@@ -7646,8 +8646,55 @@ ath10k_wmi_peer_assoc_fill(struct ath10k *ar, void *buf,
+@@ -7645,8 +8646,55 @@ ath10k_wmi_peer_assoc_fill(struct ath10k *ar, void *buf,
  			   const struct wmi_peer_assoc_complete_arg *arg)
  {
  	struct wmi_common_peer_assoc_complete_cmd *cmd = buf;
@@ -13818,7 +13825,7 @@ index 408f062a4306..41916e178ab4 100644
  	cmd->peer_new_assoc     = __cpu_to_le32(arg->peer_reassoc ? 0 : 1);
  	cmd->peer_associd       = __cpu_to_le32(arg->peer_aid);
  	cmd->peer_flags         = __cpu_to_le32(arg->peer_flags);
-@@ -7772,7 +8819,7 @@ static struct sk_buff *
+@@ -7771,7 +8819,7 @@ static struct sk_buff *
  ath10k_wmi_10_1_op_gen_peer_assoc(struct ath10k *ar,
  				  const struct wmi_peer_assoc_complete_arg *arg)
  {
@@ -13827,7 +13834,7 @@ index 408f062a4306..41916e178ab4 100644
  	struct sk_buff *skb;
  	int ret;
  
-@@ -7787,9 +8834,10 @@ ath10k_wmi_10_1_op_gen_peer_assoc(struct ath10k *ar,
+@@ -7786,9 +8834,10 @@ ath10k_wmi_10_1_op_gen_peer_assoc(struct ath10k *ar,
  	ath10k_wmi_peer_assoc_fill_10_1(ar, skb->data, arg);
  
  	ath10k_dbg(ar, ATH10K_DBG_WMI,
@@ -13840,7 +13847,7 @@ index 408f062a4306..41916e178ab4 100644
  	return skb;
  }
  
-@@ -7797,7 +8845,7 @@ static struct sk_buff *
+@@ -7796,7 +8845,7 @@ static struct sk_buff *
  ath10k_wmi_10_2_op_gen_peer_assoc(struct ath10k *ar,
  				  const struct wmi_peer_assoc_complete_arg *arg)
  {
@@ -13849,7 +13856,7 @@ index 408f062a4306..41916e178ab4 100644
  	struct sk_buff *skb;
  	int ret;
  
-@@ -7822,7 +8870,7 @@ static struct sk_buff *
+@@ -7821,7 +8870,7 @@ static struct sk_buff *
  ath10k_wmi_10_4_op_gen_peer_assoc(struct ath10k *ar,
  				  const struct wmi_peer_assoc_complete_arg *arg)
  {
@@ -13858,7 +13865,7 @@ index 408f062a4306..41916e178ab4 100644
  	struct sk_buff *skb;
  	int ret;
  
-@@ -7843,6 +8891,29 @@ ath10k_wmi_10_4_op_gen_peer_assoc(struct ath10k *ar,
+@@ -7842,6 +8891,29 @@ ath10k_wmi_10_4_op_gen_peer_assoc(struct ath10k *ar,
  	return skb;
  }
  
@@ -13888,7 +13895,7 @@ index 408f062a4306..41916e178ab4 100644
  static struct sk_buff *
  ath10k_wmi_10_2_op_gen_pdev_get_temperature(struct ath10k *ar)
  {
-@@ -7852,7 +8923,12 @@ ath10k_wmi_10_2_op_gen_pdev_get_temperature(struct ath10k *ar)
+@@ -7851,7 +8923,12 @@ ath10k_wmi_10_2_op_gen_pdev_get_temperature(struct ath10k *ar)
  	if (!skb)
  		return ERR_PTR(-ENOMEM);
  
@@ -13902,7 +13909,7 @@ index 408f062a4306..41916e178ab4 100644
  	return skb;
  }
  
-@@ -7885,6 +8961,7 @@ ath10k_wmi_op_gen_beacon_dma(struct ath10k *ar, u32 vdev_id, const void *bcn,
+@@ -7884,6 +8961,7 @@ ath10k_wmi_op_gen_beacon_dma(struct ath10k *ar, u32 vdev_id, const void *bcn,
  	struct wmi_bcn_tx_ref_cmd *cmd;
  	struct sk_buff *skb;
  	struct ieee80211_hdr *hdr;
@@ -13910,7 +13917,7 @@ index 408f062a4306..41916e178ab4 100644
  	u16 fc;
  
  	skb = ath10k_wmi_alloc_skb(ar, sizeof(*cmd));
-@@ -7894,9 +8971,33 @@ ath10k_wmi_op_gen_beacon_dma(struct ath10k *ar, u32 vdev_id, const void *bcn,
+@@ -7893,9 +8971,33 @@ ath10k_wmi_op_gen_beacon_dma(struct ath10k *ar, u32 vdev_id, const void *bcn,
  	hdr = (struct ieee80211_hdr *)bcn;
  	fc = le16_to_cpu(hdr->frame_control);
  
@@ -13946,7 +13953,7 @@ index 408f062a4306..41916e178ab4 100644
  	cmd->data_ptr = __cpu_to_le32(bcn_paddr);
  	cmd->msdu_id = 0;
  	cmd->frame_control = __cpu_to_le32(fc);
-@@ -7945,7 +9046,7 @@ ath10k_wmi_op_gen_pdev_set_wmm(struct ath10k *ar,
+@@ -7944,7 +9046,7 @@ ath10k_wmi_op_gen_pdev_set_wmm(struct ath10k *ar,
  }
  
  static struct sk_buff *
@@ -13955,7 +13962,7 @@ index 408f062a4306..41916e178ab4 100644
  {
  	struct wmi_request_stats_cmd *cmd;
  	struct sk_buff *skb;
-@@ -7956,6 +9057,7 @@ ath10k_wmi_op_gen_request_stats(struct ath10k *ar, u32 stats_mask)
+@@ -7955,6 +9057,7 @@ ath10k_wmi_op_gen_request_stats(struct ath10k *ar, u32 stats_mask)
  
  	cmd = (struct wmi_request_stats_cmd *)skb->data;
  	cmd->stats_id = __cpu_to_le32(stats_mask);
@@ -13963,7 +13970,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi request stats 0x%08x\n",
  		   stats_mask);
-@@ -8451,6 +9553,9 @@ ath10k_wmi_fw_vdev_stats_fill(const struct ath10k_fw_stats_vdev *vdev,
+@@ -8450,6 +9553,9 @@ ath10k_wmi_fw_vdev_stats_fill(const struct ath10k_fw_stats_vdev *vdev,
  				"beacon rssi history", i,
  				vdev->beacon_rssi_history[i]);
  
@@ -13973,7 +13980,7 @@ index 408f062a4306..41916e178ab4 100644
  	len += scnprintf(buf + len, buf_len - len, "\n");
  	*length = len;
  }
-@@ -8473,6 +9578,8 @@ ath10k_wmi_fw_peer_stats_fill(const struct ath10k_fw_stats_peer *peer,
+@@ -8472,6 +9578,8 @@ ath10k_wmi_fw_peer_stats_fill(const struct ath10k_fw_stats_peer *peer,
  	if (!extended_peer)
  		len += scnprintf(buf + len, buf_len - len, "%30s %llu\n",
  				"Peer RX duration", peer->rx_duration);
@@ -13982,7 +13989,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	len += scnprintf(buf + len, buf_len - len, "\n");
  	*length = len;
-@@ -8749,9 +9856,18 @@ void ath10k_wmi_10_4_op_fw_stats_fill(struct ath10k *ar,
+@@ -8748,9 +9856,18 @@ void ath10k_wmi_10_4_op_fw_stats_fill(struct ath10k *ar,
  			"MPDUs expired", pdev->mpdus_expired);
  
  	ath10k_wmi_fw_pdev_rx_stats_fill(pdev, buf, &len);
@@ -14001,7 +14008,7 @@ index 408f062a4306..41916e178ab4 100644
  	len += scnprintf(buf + len, buf_len - len, "\n");
  	len += scnprintf(buf + len, buf_len - len, "%30s (%zu)\n",
  			"ath10k VDEV stats", num_vdevs);
-@@ -9015,7 +10131,7 @@ ath10k_wmi_10_4_gen_tdls_peer_update(struct ath10k *ar,
+@@ -9014,7 +10131,7 @@ ath10k_wmi_10_4_gen_tdls_peer_update(struct ath10k *ar,
  
  	for (i = 0; i < cap->peer_chan_len; i++) {
  		chan = (struct wmi_channel *)&peer_cap->peer_chan_list[i];
@@ -14010,7 +14017,7 @@ index 408f062a4306..41916e178ab4 100644
  	}
  
  	ath10k_dbg(ar, ATH10K_DBG_WMI,
-@@ -9146,6 +10262,33 @@ ath10k_wmi_10_2_4_op_gen_bb_timing(struct ath10k *ar,
+@@ -9145,6 +10262,33 @@ ath10k_wmi_10_2_4_op_gen_bb_timing(struct ath10k *ar,
  	return skb;
  }
  
@@ -14044,7 +14051,7 @@ index 408f062a4306..41916e178ab4 100644
  static const struct wmi_ops wmi_ops = {
  	.rx = ath10k_wmi_op_rx,
  	.map_svc = wmi_main_svc_map,
-@@ -9227,7 +10370,7 @@ static const struct wmi_ops wmi_10_1_ops = {
+@@ -9226,7 +10370,7 @@ static const struct wmi_ops wmi_10_1_ops = {
  	.gen_pdev_set_rd = ath10k_wmi_10x_op_gen_pdev_set_rd,
  	.gen_start_scan = ath10k_wmi_10x_op_gen_start_scan,
  	.gen_peer_assoc = ath10k_wmi_10_1_op_gen_peer_assoc,
@@ -14053,7 +14060,7 @@ index 408f062a4306..41916e178ab4 100644
  
  	/* shared with main branch */
  	.pull_scan = ath10k_wmi_op_pull_scan_ev,
-@@ -9281,13 +10424,21 @@ static const struct wmi_ops wmi_10_1_ops = {
+@@ -9280,13 +10424,21 @@ static const struct wmi_ops wmi_10_1_ops = {
  	.fw_stats_fill = ath10k_wmi_10x_op_fw_stats_fill,
  	.get_vdev_subtype = ath10k_wmi_op_get_vdev_subtype,
  	.gen_echo = ath10k_wmi_op_gen_echo,
@@ -14076,7 +14083,7 @@ index 408f062a4306..41916e178ab4 100644
  };
  
  static const struct wmi_ops wmi_10_2_ops = {
-@@ -9358,6 +10509,7 @@ static const struct wmi_ops wmi_10_2_ops = {
+@@ -9357,6 +10509,7 @@ static const struct wmi_ops wmi_10_2_ops = {
  	.gen_gpio_config = ath10k_wmi_op_gen_gpio_config,
  	.gen_gpio_output = ath10k_wmi_op_gen_gpio_output,
  	/* .gen_pdev_enable_adaptive_cca not implemented */
@@ -14084,7 +14091,7 @@ index 408f062a4306..41916e178ab4 100644
  };
  
  static const struct wmi_ops wmi_10_2_4_ops = {
-@@ -9434,6 +10586,7 @@ static const struct wmi_ops wmi_10_2_4_ops = {
+@@ -9433,6 +10586,7 @@ static const struct wmi_ops wmi_10_2_4_ops = {
  	/* .gen_prb_tmpl not implemented */
  	/* .gen_p2p_go_bcn_ie not implemented */
  	/* .gen_adaptive_qcs not implemented */
@@ -14092,7 +14099,7 @@ index 408f062a4306..41916e178ab4 100644
  };
  
  static const struct wmi_ops wmi_10_4_ops = {
-@@ -9460,6 +10613,7 @@ static const struct wmi_ops wmi_10_4_ops = {
+@@ -9459,6 +10613,7 @@ static const struct wmi_ops wmi_10_4_ops = {
  	.gen_pdev_set_base_macaddr = ath10k_wmi_op_gen_pdev_set_base_macaddr,
  	.gen_pdev_set_rd = ath10k_wmi_10x_op_gen_pdev_set_rd,
  	.gen_pdev_set_param = ath10k_wmi_op_gen_pdev_set_param,
@@ -14100,7 +14107,7 @@ index 408f062a4306..41916e178ab4 100644
  	.gen_init = ath10k_wmi_10_4_op_gen_init,
  	.gen_start_scan = ath10k_wmi_op_gen_start_scan,
  	.gen_stop_scan = ath10k_wmi_op_gen_stop_scan,
-@@ -9513,6 +10667,7 @@ static const struct wmi_ops wmi_10_4_ops = {
+@@ -9512,6 +10667,7 @@ static const struct wmi_ops wmi_10_4_ops = {
  	.gen_pdev_get_tpc_config = ath10k_wmi_10_2_4_op_gen_pdev_get_tpc_config,
  	.gen_gpio_config = ath10k_wmi_op_gen_gpio_config,
  	.gen_gpio_output = ath10k_wmi_op_gen_gpio_output,
@@ -15174,7 +15181,7 @@ index f15e7bd690b5..770eba571d1a 100644
  
  	if (reg->country_code == CTRY_DEFAULT) {
 diff --git a/include/net/mac80211.h b/include/net/mac80211.h
-index 80259a37e724..d0244104c759 100644
+index 7d71a4149cdf..a8c068f4334b 100644
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
 @@ -2831,6 +2831,11 @@ struct ieee80211_txq {
@@ -15288,10 +15295,10 @@ index 0abb687fd58d..1fb5bd90ec44 100644
  		changed |= BSS_CHANGED_BASIC_RATES;
  		ieee80211_check_rate_mask(link);
 diff --git a/net/mac80211/debugfs.c b/net/mac80211/debugfs.c
-index a0710ae0e7a4..174582d1ef8e 100644
+index e9b3b2c7b6fa..a4b162e7d3e8 100644
 --- a/net/mac80211/debugfs.c
 +++ b/net/mac80211/debugfs.c
-@@ -500,6 +500,7 @@ static const char *hw_flag_names[] = {
+@@ -496,6 +496,7 @@ static const char *hw_flag_names[] = {
  	FLAG(DISALLOW_PUNCTURING_5GHZ),
  	FLAG(HANDLES_QUIET_CSA),
  	FLAG(STRICT),
@@ -15449,10 +15456,10 @@ index 3b00b3f9f17d..f758da7128bb 100644
  			 struct ieee80211_sub_if_data *sdata,
  			 const struct ieee80211_supported_band *sband,
 diff --git a/net/mac80211/mesh.c b/net/mac80211/mesh.c
-index 00bdf36e333e..dcbd17e67910 100644
+index 253f4b064284..a25b94b554a6 100644
 --- a/net/mac80211/mesh.c
 +++ b/net/mac80211/mesh.c
-@@ -960,12 +960,14 @@ ieee80211_mesh_build_beacon(struct ieee80211_if_mesh *ifmsh)
+@@ -963,12 +963,14 @@ ieee80211_mesh_build_beacon(struct ieee80211_if_mesh *ifmsh)
  	struct ieee80211_sub_if_data *sdata;
  	int hdr_len = offsetofend(struct ieee80211_mgmt, u.beacon);
  	u32 rate_flags;
@@ -15467,7 +15474,7 @@ index 00bdf36e333e..dcbd17e67910 100644
  
  	ie_len_he_cap = ieee80211_ie_len_he_cap(sdata);
  	ie_len_eht_cap = ieee80211_ie_len_eht_cap(sdata);
-@@ -1094,7 +1096,7 @@ ieee80211_mesh_build_beacon(struct ieee80211_if_mesh *ifmsh)
+@@ -1097,7 +1099,7 @@ ieee80211_mesh_build_beacon(struct ieee80211_if_mesh *ifmsh)
  
  	if (ieee80211_put_srates_elem(skb, sband,
  				      sdata->vif.bss_conf.basic_rates,
@@ -15476,7 +15483,7 @@ index 00bdf36e333e..dcbd17e67910 100644
  	    mesh_add_ds_params_ie(sdata, skb))
  		goto out_free;
  
-@@ -1107,7 +1109,7 @@ ieee80211_mesh_build_beacon(struct ieee80211_if_mesh *ifmsh)
+@@ -1110,7 +1112,7 @@ ieee80211_mesh_build_beacon(struct ieee80211_if_mesh *ifmsh)
  
  	if (ieee80211_put_srates_elem(skb, sband,
  				      sdata->vif.bss_conf.basic_rates,
@@ -15511,7 +15518,7 @@ index 8f2b492a9fe9..df3baf3e6e14 100644
  		    mesh_add_meshid_ie(sdata, skb) ||
  		    mesh_add_meshconf_ie(sdata, skb))
 diff --git a/net/mac80211/mlme.c b/net/mac80211/mlme.c
-index 61e793592638..8f092ad08d14 100644
+index 38549b5236b8..9f93f16d9814 100644
 --- a/net/mac80211/mlme.c
 +++ b/net/mac80211/mlme.c
 @@ -1272,6 +1272,7 @@ static void ieee80211_assoc_add_rates(struct ieee80211_local *local,
@@ -15621,10 +15628,10 @@ index b76792a7b327..e1c679ae9b92 100644
  	spin_lock(&ifocb->incomplete_lock);
  	list_add(&sta->list, &ifocb->incomplete_stations);
 diff --git a/net/mac80211/parse.c b/net/mac80211/parse.c
-index 922ea9a6e241..4d4a7b8efcba 100644
+index 530f01575bc1..15cddc5f46fa 100644
 --- a/net/mac80211/parse.c
 +++ b/net/mac80211/parse.c
-@@ -1097,7 +1097,8 @@ EXPORT_SYMBOL_IF_KUNIT(ieee802_11_parse_elems_full);
+@@ -1088,7 +1088,8 @@ EXPORT_SYMBOL_IF_KUNIT(ieee802_11_parse_elems_full);
  
  int ieee80211_parse_bitrates(enum nl80211_chan_width width,
  			     const struct ieee80211_supported_band *sband,
@@ -15634,7 +15641,7 @@ index 922ea9a6e241..4d4a7b8efcba 100644
  {
  	u32 rate_flags = ieee80211_chanwidth_rate_flags(width);
  	struct ieee80211_rate *br;
-@@ -1113,7 +1114,8 @@ int ieee80211_parse_bitrates(enum nl80211_chan_width width,
+@@ -1104,7 +1105,8 @@ int ieee80211_parse_bitrates(enum nl80211_chan_width width,
  			if ((rate_flags & br->flags) != rate_flags)
  				continue;
  
@@ -15669,7 +15676,7 @@ index 6bf3b4444a43..b34c80522047 100644
  	mi->overhead_legacy_rtscts = mi->overhead_legacy + 2 * ack_dur;
  
 diff --git a/net/mac80211/rx.c b/net/mac80211/rx.c
-index e4a3ce716f6b..01cb9c777ac1 100644
+index 590702838392..9b2270db5ca5 100644
 --- a/net/mac80211/rx.c
 +++ b/net/mac80211/rx.c
 @@ -2405,6 +2405,10 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)
@@ -15748,7 +15755,7 @@ index b41b867f43b2..c2e86dc28f1d 100644
  }
  
 diff --git a/net/mac80211/tdls.c b/net/mac80211/tdls.c
-index 1cb42c5b9b04..79b2ae6cd5d7 100644
+index 92ab7be3d482..d3c12576d658 100644
 --- a/net/mac80211/tdls.c
 +++ b/net/mac80211/tdls.c
 @@ -377,13 +377,14 @@ ieee80211_tdls_add_setup_start_ies(struct ieee80211_link_data *link,
@@ -15769,7 +15776,7 @@ index 1cb42c5b9b04..79b2ae6cd5d7 100644
  
  	/* add any custom IEs that go before Extended Capabilities */
 diff --git a/net/mac80211/tx.c b/net/mac80211/tx.c
-index 9142d748a6a7..1107c9c0d312 100644
+index 0458cbba232e..71ae34acb8ab 100644
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
 @@ -43,7 +43,7 @@ static __le16 ieee80211_duration(struct ieee80211_tx_data *tx,
@@ -15863,7 +15870,7 @@ index 9142d748a6a7..1107c9c0d312 100644
  	else if (test_and_clear_sta_flag(tx->sta, WLAN_STA_CLEAR_PS_FILT)) {
  		info->flags |= IEEE80211_TX_CTL_CLEAR_PS_FILT;
  		ieee80211_check_fast_xmit(tx->sta);
-@@ -5603,6 +5615,7 @@ struct sk_buff *ieee80211_beacon_get_tim(struct ieee80211_hw *hw,
+@@ -5605,6 +5617,7 @@ struct sk_buff *ieee80211_beacon_get_tim(struct ieee80211_hw *hw,
  						     IEEE80211_INCLUDE_ALL_MBSSID_ELEMS,
  						     NULL);
  	struct sk_buff *copy;
@@ -15871,7 +15878,7 @@ index 9142d748a6a7..1107c9c0d312 100644
  
  	if (!bcn)
  		return bcn;
-@@ -5622,7 +5635,8 @@ struct sk_buff *ieee80211_beacon_get_tim(struct ieee80211_hw *hw,
+@@ -5624,7 +5637,8 @@ struct sk_buff *ieee80211_beacon_get_tim(struct ieee80211_hw *hw,
  	if (!copy)
  		return bcn;
  
@@ -15882,7 +15889,7 @@ index 9142d748a6a7..1107c9c0d312 100644
  	return bcn;
  }
 diff --git a/net/mac80211/util.c b/net/mac80211/util.c
-index 77638e965726..6a1d0b2ff11a 100644
+index 5bb9e1d2479f..344cff2e3a9c 100644
 --- a/net/mac80211/util.c
 +++ b/net/mac80211/util.c
 @@ -115,7 +115,7 @@ void ieee80211_tx_set_protected(struct ieee80211_tx_data *tx)
